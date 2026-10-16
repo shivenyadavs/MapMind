@@ -1,0 +1,10 @@
+opencv-python
+numpy
+torch
+torchvision
+networkx
+pillow
+matplotlib
+streamlit
+pydantic
+pytest

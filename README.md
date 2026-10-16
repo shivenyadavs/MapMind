@@ -1,0 +1,204 @@
+# MapMind
+
+## Vision-Based Indoor Floor Plan Understanding and Natural Language Navigation Using Local LLMs
+
+MapMind is an end-to-end research prototype combining classical Computer Vision (CV), topological graph representation, A* search pathfinding, and local Large Language Models (LLM via Ollama) for indoor floor-plan navigation — all running locally without cloud APIs.
+
+---
+
+## Project Status
+
+| Phase | Description | Status |
+|-------|-------------|--------|
+| **Phase 1** | OpenCV image preprocessing pipeline | ✅ Complete |
+| **Phase 2** | Room, door, corridor and wall detection | ✅ Complete |
+| **Phase 3** | Structured FloorPlan JSON + NetworkX navigation graph | ✅ Complete |
+| **Phase 4** | A* pathfinding + local Ollama LLM integration | ✅ Complete |
+| **Phase 5** | Streamlit interactive web application | ✅ Complete |
+
+---
+
+## Architecture
+
+```
+Floor Plan Image
+      │
+      ▼  [Phase 1-2] OpenCV CV Pipeline
+parse_floorplan()  →  FloorPlan (Pydantic model)
+      │
+      ▼  [Phase 3] Graph Construction
+NavigationGraphBuilder  →  NetworkX Graph (rooms/corridors → edges via doors)
+      │
+      ▼  [Phase 4] Navigation
+User Query → QueryParser → A* Pathfinder → OllamaClient → Instructions
+      │
+      ▼  [Phase 5] Streamlit UI
+frontend/app.py  →  Interactive web app at http://localhost:8501
+```
+
+---
+
+## Installation & Setup
+
+### 1. Clone & Install
+
+```bash
+git clone https://github.com/your-username/mapmind.git
+cd mapmind
+
+python -m venv venv
+venv\Scripts\activate      # Windows PowerShell
+
+pip install -r requirements.txt
+```
+
+### 2. Local Ollama Setup
+
+MapMind runs fully offline. Ollama is only required for LLM-enhanced navigation instructions; A* pathfinding always works without it.
+
+```bash
+# Install Ollama from https://ollama.com/download
+# Then start the server:
+ollama serve
+
+# Pull the configured model:
+ollama pull qwen3.5:4b
+```
+
+Configure via `.env` (copy from `.env.example`):
+
+```env
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=qwen3.5:4b
+OLLAMA_TIMEOUT=30
+```
+
+---
+
+## Launching the Web Application (Phase 5)
+
+```bash
+streamlit run frontend/app.py
+```
+
+Opens at **http://localhost:8501**.
+
+### Using the App
+
+**Load the Built-in Demo:**
+1. Sidebar → Built-in Demo → click **▶ Load Demo Floor Plan**
+2. CV pipeline runs; switch to **🔍 Detection** tab for results
+
+**Upload Your Own Floor Plan:**
+1. Sidebar → Upload Your Own → drag and drop PNG/JPG/JPEG (max 20 MB)
+2. Each upload is processed in an isolated directory (previous results not affected)
+
+**Run a Navigation Query:**
+1. Switch to **🧭 Navigation** tab
+2. Type a query or click an example:
+   - *"How do I get from Reception to Room 104?"*
+   - *"Navigate from Room 101 to Room 102."*
+3. Click **🧭 Navigate** — results show path, doors, cost, and LLM instructions
+
+**Inspect the Navigation Graph:**
+- Switch to **📊 Graph** tab for the topological graph diagram and node/edge details
+
+---
+
+## CLI Navigation (Phase 4)
+
+```bash
+# Full benchmark demo
+python main.py
+
+# Single query
+python main.py --query "How do I get from Reception to Room 104?"
+
+# Direct routing
+python main.py --source Room_1 --destination Room_5
+
+# Interactive CLI
+python main.py --interactive
+
+# Without Ollama (deterministic fallback)
+python main.py --query "from Reception to Room 104" --no-llm
+```
+
+---
+
+## Running Tests
+
+```bash
+pytest -q
+```
+
+**68 tests pass** across all phases:
+
+| File | Tests | Coverage |
+|------|-------|----------|
+| `tests/test_preprocessing.py` | 4 | Phase 1 image processing |
+| `tests/test_floorplan_parser.py` | 10 | Phase 2 CV parser |
+| `tests/test_graph.py` | 8 | Phase 3 graph topology |
+| `tests/test_phase4.py` | 15 | Phase 4 A*, LLM client, query parser |
+| `tests/test_phase5.py` | 31 | Phase 5 UI helpers, fallback, isolation |
+
+---
+
+## Project Structure
+
+```
+mapmind/
+├── cv/                       # Phases 1-2: OpenCV pipeline
+│   ├── preprocessing.py      # Image loading, denoising, synthetic floor plan
+│   ├── floorplan_parser.py   # Detection: rooms, doors, corridors, walls, connections
+│   ├── visualization.py      # Annotated floor-plan rendering
+│   └── models.py             # Pydantic data models
+├── graph/                    # Phase 3: Navigation graph
+│   ├── graph_builder.py      # NetworkX graph construction from FloorPlan
+│   ├── graph_visualizer.py   # Matplotlib spatial + topological dual-panel plot
+│   └── pathfinder.py         # A* search with Euclidean heuristic
+├── llm/                      # Phase 4: LLM integration
+│   ├── ollama_client.py      # Local Ollama HTTP client (no cloud APIs)
+│   ├── query_parser.py       # NL query → graph node resolution (regex + LLM fallback)
+│   └── response_generator.py # Route explanation (LLM + deterministic fallback)
+├── frontend/                 # Phase 5: Streamlit application
+│   ├── app.py                # Main Streamlit application
+│   └── ui_helpers.py         # Stateless helper functions (image, graph, tables)
+├── tests/                    # All test suites (68 tests)
+├── data/
+│   ├── raw/                  # Sample floor plan images
+│   └── processed/            # Generated artifacts (JSON, PNG)
+├── navigation_service.py     # End-to-end navigation orchestration layer
+├── main.py                   # CLI entry point
+├── run_phase2.py             # Phase 2 runner
+├── run_phase3.py             # Phase 3 runner
+├── requirements.txt
+├── .env.example
+└── README.md
+```
+
+---
+
+## Graceful Degradation
+
+All non-LLM features work without an Ollama server:
+
+| Feature | Without Ollama |
+|---------|----------------|
+| Floor plan CV detection | ✅ Full |
+| Navigation graph construction | ✅ Full |
+| A* pathfinding & route cost | ✅ Full |
+| Query parsing (aliases) | ✅ Full |
+| Navigation instructions | ✅ Deterministic structured text |
+| LLM-enhanced instructions | ❌ Requires Ollama + model |
+
+---
+
+## Known Limitations
+
+- **Pixel-Based Distance:** Route costs are in image pixels. No real-world metric scale (metres) is available without calibration metadata.
+- **Undirected Doorways:** All detected doors assume two-way transit.
+- **No OCR:** Room IDs are auto-assigned (`Room_1`, `Room_2` …). Semantic labels like "Reception" rely on the alias map in `query_parser.py`, not text recognition.
+- **CV Accuracy:** Detection quality depends on floor-plan contrast and wall clarity. Very low-contrast or complex images may yield fewer detected regions.
+- **Single Floor Only:** Multi-storey plans are not supported.
+- **Upload Persistence:** Uploaded floor-plan processing results are stored in the server's temp directory and are not persisted across server restarts.

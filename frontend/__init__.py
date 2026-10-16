@@ -1,0 +1,1 @@
+# MapMind frontend package
