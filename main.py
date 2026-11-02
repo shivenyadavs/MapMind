@@ -1,6 +1,5 @@
 import sys
 import argparse
-from pathlib import Path
 
 from navigation_service import NavigationService
 from llm.ollama_client import OllamaClient
@@ -70,6 +69,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    # Direct routing needs both endpoints. Fail clearly instead of silently
+    # falling through to the demo mode.
+    if bool(args.source) != bool(args.destination):
+        parser.error("Direct routing requires both --source and --destination.")
+
     # Check Ollama status
     client = OllamaClient()
     ollama_up, ollama_msg = client.check_availability()
@@ -101,15 +105,22 @@ def main() -> None:
     # 2. Direct Source-Destination Mode
     if args.source and args.destination:
         print(f"\nRouting directly: {args.source} -> {args.destination}")
-        res = service.navigate_direct(args.source, args.destination, use_llm=use_llm)
-        res["query"] = f"{args.source} -> {args.destination}"
+        query_label = f"{args.source} -> {args.destination}"
+        try:
+            res = service.navigate_direct(args.source, args.destination, use_llm=use_llm)
+            res["query"] = query_label
+        except Exception as exc:
+            res = {"status": "error", "query": query_label, "message": str(exc)}
         format_navigation_result(res)
         return
 
     # 3. Single Query Mode
     if args.query:
         print(f"\nProcessing query: \"{args.query}\"")
-        res = service.navigate(args.query, use_llm=use_llm)
+        try:
+            res = service.navigate(args.query, use_llm=use_llm)
+        except Exception as exc:
+            res = {"status": "error", "query": args.query, "message": str(exc)}
         format_navigation_result(res)
         return
 
@@ -123,7 +134,10 @@ def main() -> None:
 
     print("\n[DEMO] Executing benchmark navigation queries:\n")
     for q in demo_queries:
-        res = service.navigate(q, use_llm=use_llm)
+        try:
+            res = service.navigate(q, use_llm=use_llm)
+        except Exception as exc:
+            res = {"status": "error", "query": q, "message": str(exc)}
         format_navigation_result(res)
 
 

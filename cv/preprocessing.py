@@ -11,6 +11,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 from pathlib import Path
+from typing import Optional
 
 from utils.config import RAW_DATA_DIR, PROCESSED_DATA_DIR, DEFAULT_MAX_DIMENSION
 
@@ -146,11 +147,14 @@ def find_contours(binary_image: np.ndarray) -> np.ndarray:
     return contour_img
 
 
-def save_image(image: np.ndarray, filename: str) -> Path:
-    """Save *image* under ``PROCESSED_DATA_DIR`` with *filename*.
+def save_image(image: np.ndarray, filename: str, output_dir: Optional[Path] = None) -> Path:
+    """Save *image* under *output_dir* (defaults to ``PROCESSED_DATA_DIR``).
+
     Returns the absolute pathlib.Path of the saved file.
     """
-    out_path = PROCESSED_DATA_DIR / filename
+    target_dir = Path(output_dir) if output_dir is not None else PROCESSED_DATA_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    out_path = target_dir / filename
     # ``imwrite`` expects a string path; on Windows we must handle Unicode correctly
     success = cv2.imwrite(str(out_path), image)
     if not success:
@@ -158,7 +162,12 @@ def save_image(image: np.ndarray, filename: str) -> Path:
     return out_path
 
 
-def generate_synthetic_floorplan(width: int = 800, height: int = 600, filename: str = "sample_floorplan.png") -> Path:
+def generate_synthetic_floorplan(
+    width: int = 800,
+    height: int = 600,
+    filename: str = "sample_floorplan.png",
+    output_dir: Optional[Path] = None,
+) -> Path:
     """Create a clean architectural floor plan suitable for CV detection.
 
     Layout:
@@ -198,12 +207,20 @@ def generate_synthetic_floorplan(width: int = 800, height: int = 600, filename: 
     cv2.line(img, (400, 290), (400, 455), (0, 0, 0), wall_thick)
     cv2.line(img, (400, 495), (400, 540), (0, 0, 0), wall_thick)
 
-    out_path = RAW_DATA_DIR / filename
-    cv2.imwrite(str(out_path), img)
+    target_dir = Path(output_dir) if output_dir is not None else RAW_DATA_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    out_path = target_dir / filename
+    if not cv2.imwrite(str(out_path), img):
+        raise IOError(f"Failed to write image to {out_path}")
     return out_path
 
 
-def generate_second_floorplan(width: int = 800, height: int = 600, filename: str = "office_floorplan.png") -> Path:
+def generate_second_floorplan(
+    width: int = 800,
+    height: int = 600,
+    filename: str = "office_floorplan.png",
+    output_dir: Optional[Path] = None,
+) -> Path:
     """Create a second distinct architectural floor plan (L-shaped corridor layout) for validation.
     """
     wall_thick = 6
@@ -231,7 +248,10 @@ def generate_second_floorplan(width: int = 800, height: int = 600, filename: str
     cv2.line(img, (300, 460), (300, 550), (0, 0, 0), wall_thick)
     cv2.line(img, (520, 310), (520, 550), (0, 0, 0), wall_thick)
 
-    out_path = RAW_DATA_DIR / filename
-    cv2.imwrite(str(out_path), img)
+    target_dir = Path(output_dir) if output_dir is not None else RAW_DATA_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    out_path = target_dir / filename
+    if not cv2.imwrite(str(out_path), img):
+        raise IOError(f"Failed to write image to {out_path}")
     return out_path
 

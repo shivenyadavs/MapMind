@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional
 from pydantic import BaseModel, Field, ConfigDict
 
 
@@ -35,6 +35,10 @@ class Room(BaseModel):
     width: int
     height: int
     area: int
+    semantic_label: Optional[str] = None
+    label_confidence: float = 0.0
+    classification_confidence: float = 0.0
+    label_source: str = "fallback"
 
 
 class Door(BaseModel):
@@ -45,6 +49,8 @@ class Door(BaseModel):
     orientation: Optional[str] = None  # "horizontal" or "vertical"
     associated_rooms: List[int] = Field(default_factory=list)
     connected_regions: List[str] = Field(default_factory=list)
+    confidence: float = 0.0
+    detection_method: str = "unknown"
 
 
 class Wall(BaseModel):
@@ -52,7 +58,8 @@ class Wall(BaseModel):
     start: Tuple[int, int]
     end: Tuple[int, int]
     length: float
-    orientation: str  # "horizontal" or "vertical"
+    orientation: str  # "horizontal", "vertical" or "diagonal"
+    confidence: float = 0.0
 
 
 class Corridor(BaseModel):
@@ -61,6 +68,10 @@ class Corridor(BaseModel):
     bounding_box: BoundingBox
     center: Tuple[int, int]
     area: int
+    semantic_label: Optional[str] = None
+    label_confidence: float = 0.0
+    classification_confidence: float = 0.0
+    label_source: str = "fallback"
 
 
 class Connection(BaseModel):
@@ -68,6 +79,8 @@ class Connection(BaseModel):
     destination: str
     via_door: str
     distance: float
+    confidence: float = 0.0
+    reason: str = ""
 
 
 class Route(BaseModel):
@@ -88,6 +101,11 @@ class FloorPlan(BaseModel):
     corridors: List[Corridor] = Field(default_factory=list)
     walls: List[Wall] = Field(default_factory=list)
     connections: List[Connection] = Field(default_factory=list)
+    source_width: Optional[int] = None
+    source_height: Optional[int] = None
+    processing_scale_x: float = 1.0
+    processing_scale_y: float = 1.0
+    diagnostics: Dict[str, Any] = Field(default_factory=dict)
 
     model_config = ConfigDict(
         arbitrary_types_allowed=True,

@@ -1,0 +1,636 @@
+{
+  "image_path": "data\\eval\\sample_floorplan\\01_original.png",
+  "image_width": 800,
+  "image_height": 600,
+  "rooms": [
+    {
+      "id": 1,
+      "name": "Room_1",
+      "bounding_box": {
+        "x": 105,
+        "y": 65,
+        "width": 592,
+        "height": 142
+      },
+      "center": [
+        400,
+        136
+      ],
+      "width": 592,
+      "height": 142,
+      "area": 84064,
+      "semantic_label": null,
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
+      "label_source": "fallback"
+    },
+    {
+      "id": 2,
+      "name": "Room_2",
+      "bounding_box": {
+        "x": 105,
+        "y": 294,
+        "width": 292,
+        "height": 118
+      },
+      "center": [
+        250,
+        353
+      ],
+      "width": 292,
+      "height": 118,
+      "area": 34201,
+      "semantic_label": null,
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
+      "label_source": "fallback"
+    },
+    {
+      "id": 3,
+      "name": "Room_3",
+      "bounding_box": {
+        "x": 405,
+        "y": 294,
+        "width": 292,
+        "height": 118
+      },
+      "center": [
+        550,
+        353
+      ],
+      "width": 292,
+      "height": 118,
+      "area": 34201,
+      "semantic_label": null,
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
+      "label_source": "fallback"
+    },
+    {
+      "id": 4,
+      "name": "Room_4",
+      "bounding_box": {
+        "x": 105,
+        "y": 419,
+        "width": 292,
+        "height": 118
+      },
+      "center": [
+        250,
+        478
+      ],
+      "width": 292,
+      "height": 118,
+      "area": 34201,
+      "semantic_label": null,
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
+      "label_source": "fallback"
+    },
+    {
+      "id": 5,
+      "name": "Room_5",
+      "bounding_box": {
+        "x": 404,
+        "y": 419,
+        "width": 293,
+        "height": 118
+      },
+      "center": [
+        550,
+        478
+      ],
+      "width": 293,
+      "height": 118,
+      "area": 34238,
+      "semantic_label": null,
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
+      "label_source": "fallback"
+    }
+  ],
+  "doors": [
+    {
+      "id": 1,
+      "name": "Door_1",
+      "bounding_box": {
+        "x": 385,
+        "y": 207,
+        "width": 31,
+        "height": 7
+      },
+      "center": [
+        400,
+        210
+      ],
+      "orientation": "horizontal",
+      "associated_rooms": [
+        1
+      ],
+      "connected_regions": [
+        "Room_1",
+        "Corridor_1"
+      ],
+      "confidence": 0.83,
+      "detection_method": "region_gap"
+    },
+    {
+      "id": 2,
+      "name": "Door_2",
+      "bounding_box": {
+        "x": 235,
+        "y": 412,
+        "width": 31,
+        "height": 7
+      },
+      "center": [
+        250,
+        415
+      ],
+      "orientation": "horizontal",
+      "associated_rooms": [
+        2,
+        4
+      ],
+      "connected_regions": [
+        "Room_2",
+        "Room_4"
+      ],
+      "confidence": 0.83,
+      "detection_method": "region_gap"
+    },
+    {
+      "id": 3,
+      "name": "Door_3",
+      "bounding_box": {
+        "x": 235,
+        "y": 287,
+        "width": 31,
+        "height": 7
+      },
+      "center": [
+        250,
+        290
+      ],
+      "orientation": "horizontal",
+      "associated_rooms": [
+        2
+      ],
+      "connected_regions": [
+        "Corridor_1",
+        "Room_2"
+      ],
+      "confidence": 0.83,
+      "detection_method": "region_gap"
+    },
+    {
+      "id": 4,
+      "name": "Door_4",
+      "bounding_box": {
+        "x": 535,
+        "y": 412,
+        "width": 31,
+        "height": 7
+      },
+      "center": [
+        550,
+        415
+      ],
+      "orientation": "horizontal",
+      "associated_rooms": [
+        3,
+        5
+      ],
+      "connected_regions": [
+        "Room_3",
+        "Room_5"
+      ],
+      "confidence": 0.83,
+      "detection_method": "region_gap"
+    },
+    {
+      "id": 5,
+      "name": "Door_5",
+      "bounding_box": {
+        "x": 535,
+        "y": 287,
+        "width": 31,
+        "height": 7
+      },
+      "center": [
+        550,
+        290
+      ],
+      "orientation": "horizontal",
+      "associated_rooms": [
+        3
+      ],
+      "connected_regions": [
+        "Corridor_1",
+        "Room_3"
+      ],
+      "confidence": 0.83,
+      "detection_method": "region_gap"
+    },
+    {
+      "id": 6,
+      "name": "Door_6",
+      "bounding_box": {
+        "x": 397,
+        "y": 460,
+        "width": 7,
+        "height": 31
+      },
+      "center": [
+        400,
+        475
+      ],
+      "orientation": "vertical",
+      "associated_rooms": [
+        4,
+        5
+      ],
+      "connected_regions": [
+        "Room_4",
+        "Room_5"
+      ],
+      "confidence": 0.83,
+      "detection_method": "region_gap"
+    }
+  ],
+  "corridors": [
+    {
+      "id": 1,
+      "name": "Corridor_1",
+      "bounding_box": {
+        "x": 105,
+        "y": 214,
+        "width": 592,
+        "height": 73
+      },
+      "center": [
+        400,
+        250
+      ],
+      "area": 42661,
+      "semantic_label": null,
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
+      "label_source": "fallback"
+    }
+  ],
+  "walls": [
+    {
+      "id": 1,
+      "start": [
+        96,
+        539
+      ],
+      "end": [
+        703,
+        539
+      ],
+      "length": 607.0,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    },
+    {
+      "id": 2,
+      "start": [
+        96,
+        60
+      ],
+      "end": [
+        703,
+        60
+      ],
+      "length": 607.0,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    },
+    {
+      "id": 3,
+      "start": [
+        100,
+        56
+      ],
+      "end": [
+        100,
+        543
+      ],
+      "length": 487.0,
+      "orientation": "vertical",
+      "confidence": 1.0
+    },
+    {
+      "id": 4,
+      "start": [
+        700,
+        58
+      ],
+      "end": [
+        700,
+        542
+      ],
+      "length": 484.0,
+      "orientation": "vertical",
+      "confidence": 1.0
+    },
+    {
+      "id": 5,
+      "start": [
+        96,
+        210
+      ],
+      "end": [
+        382,
+        210
+      ],
+      "length": 286.0,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    },
+    {
+      "id": 6,
+      "start": [
+        418,
+        210
+      ],
+      "end": [
+        695,
+        210
+      ],
+      "length": 277.0,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    },
+    {
+      "id": 7,
+      "start": [
+        105,
+        290
+      ],
+      "end": [
+        188,
+        290
+      ],
+      "length": 83.0,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    },
+    {
+      "id": 8,
+      "start": [
+        200,
+        290
+      ],
+      "end": [
+        232,
+        290
+      ],
+      "length": 32.0,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    },
+    {
+      "id": 9,
+      "start": [
+        268,
+        290
+      ],
+      "end": [
+        532,
+        290
+      ],
+      "length": 264.0,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    },
+    {
+      "id": 10,
+      "start": [
+        570,
+        290
+      ],
+      "end": [
+        703,
+        290
+      ],
+      "length": 133.0,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    },
+    {
+      "id": 11,
+      "start": [
+        108,
+        415
+      ],
+      "end": [
+        232,
+        415
+      ],
+      "length": 124.0,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    },
+    {
+      "id": 12,
+      "start": [
+        268,
+        415
+      ],
+      "end": [
+        532,
+        415
+      ],
+      "length": 264.0,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    },
+    {
+      "id": 13,
+      "start": [
+        568,
+        415
+      ],
+      "end": [
+        689,
+        415
+      ],
+      "length": 121.0,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    },
+    {
+      "id": 14,
+      "start": [
+        400,
+        287
+      ],
+      "end": [
+        400,
+        458
+      ],
+      "length": 171.0,
+      "orientation": "vertical",
+      "confidence": 1.0
+    },
+    {
+      "id": 15,
+      "start": [
+        400,
+        484
+      ],
+      "end": [
+        399,
+        530
+      ],
+      "length": 46.010868281309364,
+      "orientation": "vertical",
+      "confidence": 0.833
+    },
+    {
+      "id": 16,
+      "start": [
+        307,
+        286
+      ],
+      "end": [
+        268,
+        287
+      ],
+      "length": 39.01281840626232,
+      "orientation": "horizontal",
+      "confidence": 1.0
+    }
+  ],
+  "connections": [
+    {
+      "source": "Room_1",
+      "destination": "Corridor_1",
+      "via_door": "Door_1",
+      "distance": 114.0,
+      "confidence": 0.83,
+      "reason": "region_gap candidate bridged Room_1 and Corridor_1 via mask probing"
+    },
+    {
+      "source": "Room_2",
+      "destination": "Room_4",
+      "via_door": "Door_2",
+      "distance": 125.0,
+      "confidence": 0.83,
+      "reason": "region_gap candidate bridged Room_2 and Room_4 via mask probing"
+    },
+    {
+      "source": "Corridor_1",
+      "destination": "Room_2",
+      "via_door": "Door_3",
+      "distance": 218.2,
+      "confidence": 0.83,
+      "reason": "region_gap candidate bridged Corridor_1 and Room_2 via mask probing"
+    },
+    {
+      "source": "Room_3",
+      "destination": "Room_5",
+      "via_door": "Door_4",
+      "distance": 125.0,
+      "confidence": 0.83,
+      "reason": "region_gap candidate bridged Room_3 and Room_5 via mask probing"
+    },
+    {
+      "source": "Corridor_1",
+      "destination": "Room_3",
+      "via_door": "Door_5",
+      "distance": 218.2,
+      "confidence": 0.83,
+      "reason": "region_gap candidate bridged Corridor_1 and Room_3 via mask probing"
+    },
+    {
+      "source": "Room_4",
+      "destination": "Room_5",
+      "via_door": "Door_6",
+      "distance": 300.1,
+      "confidence": 0.83,
+      "reason": "region_gap candidate bridged Room_4 and Room_5 via mask probing"
+    }
+  ],
+  "source_width": 800,
+  "source_height": 600,
+  "processing_scale_x": 1.0,
+  "processing_scale_y": 1.0,
+  "diagnostics": {
+    "config": {
+      "max_dimension": 1200,
+      "color_saturation_ratio": 0.015,
+      "achromatic_delta": 28,
+      "wall_value_max": 175,
+      "very_dark_value": 70,
+      "adaptive_block_ratio": 0.045,
+      "adaptive_c": 8.0,
+      "min_structure_dim_ratio": 0.03,
+      "min_structure_area_ratio": 0.00005,
+      "micro_close_ratio": 0.0035,
+      "window_border_ratio": 0.08,
+      "door_symbol_bgr": [
+        176,
+        130,
+        173
+      ],
+      "door_symbol_tolerance": 30,
+      "door_symbol_min_area_ratio": 0.0002,
+      "door_symbol_max_aspect_ratio": 5.0,
+      "door_symbol_min_side_ratio": 0.006,
+      "segmentation_gap_ratio": 0.09,
+      "wall_min_length_ratio": 0.02,
+      "hough_threshold_ratio": 0.035,
+      "hough_max_gap_ratio": 0.0125,
+      "merge_angle_deg": 7.5,
+      "merge_distance_ratio": 0.012,
+      "merge_gap_ratio": 0.012,
+      "wall_support_min": 0.52,
+      "wall_support_radius": 1,
+      "room_min_area_ratio": 0.004,
+      "room_min_dim_ratio": 0.022,
+      "room_max_area_ratio": 0.8,
+      "corridor_aspect_ratio": 4.0,
+      "corridor_max_width_ratio": 0.16,
+      "door_merge_distance_ratio": 0.055,
+      "door_duplicate_pair_ratio": 0.14,
+      "door_min_area_ratio": 0.00008,
+      "door_max_area_ratio": 0.006,
+      "door_region_gap_min_area_ratio": 0.00025,
+      "door_region_gap_max_major_ratio": 0.12,
+      "door_min_dim_ratio": 0.0075,
+      "door_max_minor_ratio": 0.08,
+      "door_probe_step_ratio": 0.0075,
+      "door_probe_max_ratio": 0.1,
+      "door_association_margin_ratio": 0.01,
+      "door_fallback_distance_ratio": 0.08,
+      "ocr_min_confidence": 35.0,
+      "debug": true
+    },
+    "source_size": [
+      800,
+      600
+    ],
+    "working_size": [
+      800,
+      600
+    ],
+    "processing_scale": [
+      1.0,
+      1.0
+    ],
+    "wall_candidates": 49,
+    "walls_accepted": 16,
+    "regions": 6,
+    "door_candidates": 6,
+    "doors_accepted": 6,
+    "ocr": {
+      "available": false,
+      "backend": "unavailable",
+      "error": "pytesseract is not installed"
+    }
+  }
+}

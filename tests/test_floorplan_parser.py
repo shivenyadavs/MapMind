@@ -8,17 +8,30 @@ from cv.models import FloorPlan, Room, Door, Corridor, Wall
 
 
 @pytest.fixture(scope="module")
-def sample_floorplan_path():
-    return generate_synthetic_floorplan()
+def test_dirs(tmp_path_factory):
+    base = tmp_path_factory.mktemp("floorplan_parser")
+    return base / "raw", base / "processed"
 
 
 @pytest.fixture(scope="module")
-def second_floorplan_path():
-    return generate_second_floorplan()
+def sample_floorplan_path(test_dirs):
+    raw_dir, _ = test_dirs
+    return generate_synthetic_floorplan(output_dir=raw_dir)
 
 
-def test_parse_floorplan_counts(sample_floorplan_path):
-    fp = parse_floorplan(sample_floorplan_path)
+@pytest.fixture(scope="module")
+def second_floorplan_path(test_dirs):
+    raw_dir, _ = test_dirs
+    return generate_second_floorplan(output_dir=raw_dir)
+
+
+def _parse(path, test_dirs):
+    _, processed_dir = test_dirs
+    return parse_floorplan(path, output_dir=processed_dir)
+
+
+def test_parse_floorplan_counts(sample_floorplan_path, test_dirs):
+    fp = _parse(sample_floorplan_path, test_dirs)
 
     assert isinstance(fp, FloorPlan)
     assert len(fp.rooms) >= 5, f"Expected at least 5 rooms, got {len(fp.rooms)}"
@@ -27,8 +40,8 @@ def test_parse_floorplan_counts(sample_floorplan_path):
     assert len(fp.walls) > 0, f"Expected detected walls, got {len(fp.walls)}"
 
 
-def test_rooms_validity(sample_floorplan_path):
-    fp = parse_floorplan(sample_floorplan_path)
+def test_rooms_validity(sample_floorplan_path, test_dirs):
+    fp = _parse(sample_floorplan_path, test_dirs)
     total_image_area = fp.image_width * fp.image_height
 
     for room in fp.rooms:
@@ -50,8 +63,8 @@ def test_rooms_validity(sample_floorplan_path):
         assert bbox.y <= cy <= bbox.y2
 
 
-def test_doors_validity(sample_floorplan_path):
-    fp = parse_floorplan(sample_floorplan_path)
+def test_doors_validity(sample_floorplan_path, test_dirs):
+    fp = _parse(sample_floorplan_path, test_dirs)
 
     for door in fp.doors:
         assert isinstance(door, Door)
@@ -63,8 +76,8 @@ def test_doors_validity(sample_floorplan_path):
         assert door.bounding_box.height > 0
 
 
-def test_corridors_validity(sample_floorplan_path):
-    fp = parse_floorplan(sample_floorplan_path)
+def test_corridors_validity(sample_floorplan_path, test_dirs):
+    fp = _parse(sample_floorplan_path, test_dirs)
 
     for cor in fp.corridors:
         assert isinstance(cor, Corridor)
@@ -76,9 +89,9 @@ def test_corridors_validity(sample_floorplan_path):
         assert aspect >= 3.0
 
 
-def test_second_floorplan_generalization(second_floorplan_path):
+def test_second_floorplan_generalization(second_floorplan_path, test_dirs):
     """Test on a second distinct architectural floor plan to verify generalizability."""
-    fp = parse_floorplan(second_floorplan_path)
+    fp = _parse(second_floorplan_path, test_dirs)
 
     assert len(fp.rooms) >= 4
     assert len(fp.doors) >= 4

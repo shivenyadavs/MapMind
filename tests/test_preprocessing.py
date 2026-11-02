@@ -1,8 +1,5 @@
 
 
-import pathlib
-
-import cv2
 import numpy as np
 import pytest
 
@@ -15,15 +12,12 @@ from cv.preprocessing import (
     generate_synthetic_floorplan,
 )
 
-# Helpers
-PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[2]
-RAW_DIR = PROJECT_ROOT / "data" / "raw"
 
 @pytest.fixture(scope="module")
-def sample_image_path():
-    # Ensure synthetic image exists
-    path = generate_synthetic_floorplan()
-    return path
+def sample_image_path(tmp_path_factory):
+    # Generate into a temporary directory so tests never touch data/raw.
+    out_dir = tmp_path_factory.mktemp("preprocessing_raw")
+    return generate_synthetic_floorplan(output_dir=out_dir)
 
 def test_load_floorplan(sample_image_path):
     img = load_floorplan(sample_image_path)

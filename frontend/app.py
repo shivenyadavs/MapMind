@@ -16,12 +16,12 @@ Architecture:
 
 from __future__ import annotations
 
-import json
+import html
 import logging
-import os
 import sys
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Ensure the project root is on sys.path so backend modules are importable
@@ -36,11 +36,11 @@ import streamlit as st
 import numpy as np
 
 # Backend imports (all reused from existing phases)
-from cv.floorplan_parser import parse_floorplan, save_floorplan_json
+from cv.coordinates import scale_floorplan_to_source
+from cv.floorplan_parser import parse_floorplan
 from cv.preprocessing import generate_synthetic_floorplan, load_floorplan
 from cv.visualization import visualize_floorplan
 from graph.graph_builder import NavigationGraphBuilder, save_navigation_graph_json
-from graph.graph_visualizer import visualize_navigation_graph
 from llm.ollama_client import OllamaClient
 from navigation_service import NavigationService
 
@@ -213,7 +213,8 @@ def _init_session():
     defaults = {
         "floor_source": None,       # "demo" | "upload"
         "upload_hash": None,        # hex digest of uploaded file
-        "floorplan": None,          # FloorPlan object (current)
+        "floorplan": None,          # FloorPlan object (current, working coordinates)
+        "floorplan_source": None,   # FloorPlan expressed in original-image coordinates
         "graph": None,              # nx.Graph (current)
         "workdir": None,            # Path to per-upload tmp dir
         "orig_img_bytes": None,     # bytes of original floor-plan image (BGR→PNG)
@@ -221,79 +222,342 @@ def _init_session():
         "route_img_bytes": None,    # bytes with route overlay
         "nav_result": None,         # last navigate() result dict
         "ollama_status": None,      # (bool, str) cached availability
+        "nav_query_input": "",      # navigation query text (widget state)
+        # Ollama model discovery / selection (session-scoped; never written to .env)
+        "selected_model": None,
+        "available_models": [],
+        "model_details": {},
+        "models_initialized": False,
+        "model_list_error": None,
+        "model_notice": None,
+        "model_test_result": None,
     }
     for k, v in defaults.items():
         if k not in st.session_state:
             st.session_state[k] = v
 
 
-def _clear_nav_state():
-    """Reset navigation result when the floor plan changes."""
-    st.session_state.nav_result = None
-    st.session_state.route_img_bytes = None
+# Keys that hold per-floor-plan processing results. They must all be cleared
+# together whenever the active floor plan changes or processing fails, so the
+# UI can never show a stale route or stale images.
+PROCESSING_STATE_KEYS = (
+    "floorplan",
+    "floorplan_source",
+    "graph",
+    "workdir",
+    "floor_source",
+    "orig_img_bytes",
+    "annotated_img_bytes",
+    "route_img_bytes",
+    "nav_result",
+)
+
+
+def _reset_processing_state(state) -> None:
+    """Clear processed floor-plan state from a mapping-like object.
+
+    Extracted as a pure helper so it can be unit-tested without a Streamlit
+    runtime. ``upload_hash`` is intentionally not cleared: the upload handler
+    owns that key and uses it to avoid reprocessing a failed upload on every
+    rerun.
+    """
+    for key in PROCESSING_STATE_KEYS:
+        state[key] = None
 
 
 def _clear_floorplan_state():
-    """Fully reset processing state for a new upload."""
-    st.session_state.floorplan = None
-    st.session_state.graph = None
-    st.session_state.floorplan = None
-    st.session_state.orig_img_bytes = None
-    st.session_state.annotated_img_bytes = None
-    _clear_nav_state()
+    """Fully reset per-floor-plan processing state."""
+    _reset_processing_state(st.session_state)
+
+
+def _begin_upload(state, new_hash: str) -> bool:
+    """Begin processing an upload exactly once.
+
+    Clears any previous floor-plan/navigation results and records the hash
+    *before* processing starts. If processing fails, the hash remains set so
+    the same failed file is not retried on every Streamlit rerun.
+
+    Returns True when the caller should process the upload, False when this
+    exact upload was already attempted.
+    """
+    if state.get("upload_hash") == new_hash:
+        return False
+    _reset_processing_state(state)
+    state["upload_hash"] = new_hash
+    return True
+
+
+def _set_nav_query(text: str) -> None:
+    """Set the navigation query input from a quick-example button.
+
+    Implemented as a widget callback so it runs before the text input is
+    instantiated in the next script run. Assigning the key directly inside
+    the button branch (after the widget exists) raises StreamlitAPIException.
+    """
+    st.session_state["nav_query_input"] = text
+
+
+def _retry_upload() -> None:
+    """Forget the failed upload hash so the next rerun processes it again."""
+    st.session_state["upload_hash"] = None
 
 
 # ===========================================================================
-# OLLAMA STATUS (sidebar)
+# OLLAMA MODEL CONFIGURATION (sidebar)
 # ===========================================================================
 
 def _get_ollama_client() -> OllamaClient:
-    """Return a cached OllamaClient (one per server process)."""
-    if "ollama_client" not in st.session_state:
-        st.session_state.ollama_client = OllamaClient()
-    return st.session_state.ollama_client
+    """Return the session's OllamaClient, synced to the selected model.
+
+    The client is reused so its short-lived status/model caches survive normal
+    Streamlit reruns. Its ``model`` property is updated from session state on
+    every call, so changing the dropdown immediately affects all subsequent
+    requests without recreating the client or mutating environment variables.
+    """
+    client = st.session_state.get("ollama_client")
+    if client is None:
+        client = OllamaClient()
+        st.session_state.ollama_client = client
+
+    selected = st.session_state.get("selected_model")
+    if selected and client.model != selected:
+        client.set_model(selected)
+    return client
 
 
-def _render_ollama_sidebar():
+def _apply_selected_model() -> None:
+    """Push the current dropdown selection into the shared Ollama client."""
+    selected = st.session_state.get("selected_model")
+    if selected:
+        _get_ollama_client().set_model(selected)
+
+
+def _format_model_size(size) -> Optional[str]:
+    """Format Ollama's byte size for display, or return None if unavailable."""
+    if not isinstance(size, (int, float)) or isinstance(size, bool) or size <= 0:
+        return None
+    value = float(size)
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if value < 1024 or unit == "TB":
+            if unit == "B":
+                return f"{int(value)} B"
+            return f"{value:.1f} {unit}"
+        value /= 1024
+    return None
+
+
+def _reconcile_selected_model(client: OllamaClient) -> None:
+    """Keep the selected model valid after a discovery refresh.
+
+    - Preserve the current selection if it is still installed.
+    - On the first load, prefer the configured/default model when installed.
+    - If the current model was removed, select the first available model and
+      record a user-visible notice.
+    - If discovery failed (offline), retain the previous selection so it can
+      be restored after Ollama comes back.
+    """
+    names = list(st.session_state.get("available_models") or [])
+    current = st.session_state.get("selected_model")
+    list_error = st.session_state.get("model_list_error")
+
+    if not names:
+        if list_error is None:
+            st.session_state.selected_model = None
+            if current:
+                st.session_state.model_notice = (
+                    f"Previously selected model `{current}` is no longer installed. "
+                    "No Ollama models are currently available."
+                )
+        return
+
+    if current in names:
+        st.session_state.selected_model = current
+        return
+
+    preferred = current or client.model
+    fallback = preferred if preferred in names else names[0]
+
+    if current and current not in names:
+        st.session_state.model_notice = (
+            f"Previously selected model `{current}` is no longer installed. "
+            f"Switched to `{fallback}`."
+        )
+    elif not current and preferred not in names:
+        st.session_state.model_notice = (
+            f"Configured model `{preferred}` is not installed. Using `{fallback}` instead."
+        )
+
+    st.session_state.selected_model = fallback
+
+
+def _load_models(*, force_refresh: bool = False, notify: bool = False) -> None:
+    """Discover installed Ollama models and reconcile the current selection.
+
+    Called once per session at startup, and explicitly by the refresh button.
+    Ordinary reruns use the cached list stored in session state and do not
+    issue synchronous HTTP requests.
+    """
+    client = _get_ollama_client()
+    try:
+        details = client.list_model_details(force_refresh=force_refresh)
+    except Exception as exc:
+        st.session_state.available_models = []
+        st.session_state.model_details = {}
+        st.session_state.model_list_error = str(exc)
+        st.session_state.models_initialized = True
+        if notify:
+            st.session_state.model_notice = "Could not refresh the installed model list."
+        _reconcile_selected_model(client)
+        return
+
+    st.session_state.available_models = [item["name"] for item in details]
+    st.session_state.model_details = {item["name"]: item for item in details}
+    st.session_state.model_list_error = None
+    st.session_state.models_initialized = True
+    _reconcile_selected_model(client)
+    _apply_selected_model()
+
+
+def _refresh_models_callback() -> None:
+    """Button callback: bypass caches and discover models again."""
+    st.session_state.model_test_result = None
+    _load_models(force_refresh=True, notify=True)
+
+
+def _test_selected_model(model: str) -> None:
+    """Send one short prompt to the selected model and record the outcome."""
+    client = _get_ollama_client()
+    client.set_model(model)
+    started = time.perf_counter()
+    try:
+        with st.spinner(f"Testing `{model}`…"):
+            response = client.generate(
+                prompt="Reply with exactly one word: ready",
+                system="You are a connectivity test. Keep the reply to one word.",
+                model=model,
+                temperature=0.0,
+            )
+    except Exception as exc:
+        st.session_state.model_test_result = {
+            "ok": False,
+            "model": model,
+            "message": str(exc),
+            "elapsed": time.perf_counter() - started,
+        }
+        return
+
+    st.session_state.model_test_result = {
+        "ok": True,
+        "model": model,
+        "response": (response or "").strip(),
+        "elapsed": time.perf_counter() - started,
+    }
+
+
+def _render_model_test_result() -> None:
+    result = st.session_state.get("model_test_result")
+    if not result:
+        return
+
+    elapsed = result.get("elapsed", 0.0)
+    if result.get("ok"):
+        st.sidebar.success(
+            f"`{result['model']}` responded in {elapsed:.2f}s."
+        )
+        response = result.get("response") or "(empty response)"
+        st.sidebar.caption(f"Test response: {response[:300]}")
+    else:
+        st.sidebar.error(
+            f"Model test failed for `{result['model']}` after {elapsed:.2f}s: "
+            f"{result.get('message', 'unknown error')}"
+        )
+
+
+def _render_llm_configuration():
     st.sidebar.markdown("---")
-    st.sidebar.markdown("### 🤖 Ollama Status")
+    st.sidebar.markdown("### 🤖 LLM Model Configuration")
+
+    # Startup discovery happens once; refreshes are explicit.
+    if not st.session_state.get("models_initialized"):
+        _load_models(force_refresh=False)
 
     client = _get_ollama_client()
-    is_up, msg = client.check_availability(force_refresh=True)
+    is_up, msg = client.check_availability()
     st.session_state.ollama_status = (is_up, msg)
 
-    if is_up:
-        model_ok = client.is_model_installed()
-        st.sidebar.markdown(
-            f'<span class="badge-ok">● Server reachable</span>', unsafe_allow_html=True
-        )
-        st.sidebar.caption(f"Model: `{client.model}`")
-        if model_ok:
-            st.sidebar.markdown(
-                '<span class="badge-ok">● Model installed</span>', unsafe_allow_html=True
-            )
-        else:
-            st.sidebar.markdown(
-                f'<span class="badge-warn">⚠ Model not found</span>', unsafe_allow_html=True
-            )
-            st.sidebar.caption(f"Run: `ollama pull {client.model}`")
+    st.sidebar.button(
+        "🔄 Refresh installed models",
+        key="refresh_models",
+        on_click=_refresh_models_callback,
+        width="stretch",
+    )
 
-        # Show all installed models
-        try:
-            installed = client.list_models()
-            if installed:
-                st.sidebar.caption("Installed models:")
-                for m in installed:
-                    marker = "✓ " if m.lower().startswith(client.model.lower().split(":")[0]) else "  "
-                    st.sidebar.caption(f"&nbsp;&nbsp;{marker}{m}")
-        except Exception:
-            pass
+    if is_up:
+        st.sidebar.markdown(
+            '<span class="badge-ok">● Ollama connected</span>',
+            unsafe_allow_html=True,
+        )
     else:
         st.sidebar.markdown(
-            '<span class="badge-err">✗ Server not detected</span>', unsafe_allow_html=True
+            '<span class="badge-err">✗ Ollama not detected</span>',
+            unsafe_allow_html=True,
         )
-        st.sidebar.caption("Start Ollama with: `ollama serve`")
-        st.sidebar.caption("Navigation will use deterministic fallback.")
+        st.sidebar.caption("Start Ollama with `ollama serve`, then click Refresh.")
+        st.sidebar.caption("Navigation will use deterministic fallback mode.")
+
+    notice = st.session_state.pop("model_notice", None)
+    if notice:
+        st.sidebar.info(notice)
+
+    names = list(st.session_state.get("available_models") or [])
+    list_error = st.session_state.get("model_list_error")
+
+    if list_error:
+        st.sidebar.error(
+            "Could not read installed models. Ensure Ollama is running and click Refresh."
+        )
+
+    if names:
+        selected = st.sidebar.selectbox(
+            "Select model",
+            options=names,
+            key="selected_model",
+            help="Installed models are read from Ollama's /api/tags endpoint.",
+        )
+        _apply_selected_model()
+
+        st.sidebar.caption(f"**Model used for next navigation:** `{selected}`")
+
+        detail = st.session_state.model_details.get(selected, {})
+        meta = []
+        size_label = _format_model_size(detail.get("size"))
+        if size_label:
+            meta.append(f"Size on disk: {size_label}")
+        if detail.get("parameter_size"):
+            meta.append(f"Parameters: {detail['parameter_size']}")
+        if detail.get("quantization_level"):
+            meta.append(f"Quantization: {detail['quantization_level']}")
+        if meta:
+            st.sidebar.caption(" · ".join(meta))
+
+        st.sidebar.caption(
+            "Larger models may use more system RAM and run slower on machines with limited VRAM."
+        )
+
+        if st.sidebar.button(
+            "🧪 Test Selected Model",
+            key="test_selected_model",
+            width="stretch",
+        ):
+            _test_selected_model(selected)
+
+        _render_model_test_result()
+    elif not list_error:
+        st.sidebar.warning(
+            "No Ollama models are installed.\n\n"
+            "Install one with `ollama pull qwen3.5:4b` and click "
+            "**Refresh installed models**. MapMind does not download models automatically."
+        )
 
 
 # ===========================================================================
@@ -310,38 +574,28 @@ def _process_floorplan(image_path: Path, workdir: Path):
     orig_img_bytes, annotated_img_bytes.
     On failure, raises an exception — caller handles user messaging.
     """
-    # 1. Load original image
+    # 1. Load the original image. The parser records both source and working
+    #    dimensions so the UI never mixes coordinate spaces.
     orig_img = load_floorplan(image_path)
 
-    # 2. Run full CV + graph pipeline (parse_floorplan saves debug images to
-    #    data/processed/ by default; we pass a custom output path to avoid
-    #    clobbering the demo artifacts).
-    #
-    #    parse_floorplan() internally calls save_image() which writes to
-    #    data/processed/*.  We use a monkeypatching approach: temporarily
-    #    override the save target inside cv.preprocessing.
-    import cv.preprocessing as _prep
-    _original_processed = _prep.PROCESSED_DATA_DIR
-    _prep.PROCESSED_DATA_DIR = workdir   # redirect debug images
+    # 2. Run full CV + graph pipeline. Passing output_dir keeps every artifact
+    #    (floorplan.json + debug images) inside this upload's isolated workdir.
+    fp = parse_floorplan(image_path, output_dir=workdir)
 
-    try:
-        fp = parse_floorplan(image_path)
-    finally:
-        _prep.PROCESSED_DATA_DIR = _original_processed  # always restore
-
-    # 3. Save structured JSON to workdir (not to shared data/processed/)
-    save_floorplan_json(fp, workdir / "floorplan.json")
-
-    # 4. Build graph
+    # 3. Build and persist the graph in the same workdir.
     builder = NavigationGraphBuilder(fp)
     G = builder.graph
     save_navigation_graph_json(G, workdir / "navigation_graph.json")
 
-    # 5. Annotated floor-plan image
-    ann_img = visualize_floorplan(fp, orig_img)
+    # 4. Convert detection geometry back to source coordinates before drawing
+    #    on the original image. The working-coordinate FloorPlan is retained for
+    #    tables/debugging and existing API compatibility.
+    fp_source = scale_floorplan_to_source(fp)
+    ann_img = visualize_floorplan(fp_source, orig_img)
 
-    # 6. Store in session state
+    # 5. Store in session state
     st.session_state.floorplan = fp
+    st.session_state.floorplan_source = fp_source
     st.session_state.graph = G
     st.session_state.orig_img_bytes = numpy_to_bytes(orig_img)
     st.session_state.annotated_img_bytes = numpy_to_bytes(ann_img)
@@ -372,10 +626,12 @@ def render_sidebar():
     )
 
     if source_choice == "Built-in Demo":
-        if st.sidebar.button("▶ Load Demo Floor Plan", use_container_width=True):
+        if st.sidebar.button(
+            "▶ Load Demo Floor Plan", key="load_demo", width="stretch"
+        ):
             _clear_floorplan_state()
             tmpdir = get_session_tmpdir() / "demo"
-            tmpdir.mkdir(exist_ok=True)
+            tmpdir.mkdir(parents=True, exist_ok=True)
             with st.spinner("Generating synthetic floor plan and running CV pipeline…"):
                 try:
                     sample_path = generate_synthetic_floorplan()
@@ -386,6 +642,8 @@ def render_sidebar():
                     st.sidebar.success("Demo floor plan loaded.")
                 except Exception as exc:
                     log.exception("Demo processing failed")
+                    _clear_floorplan_state()
+                    st.session_state.upload_hash = None
                     st.sidebar.error(f"Failed to load demo: {exc}")
 
     else:  # Upload
@@ -395,7 +653,7 @@ def render_sidebar():
             help=f"PNG, JPG, or JPEG · Max {MAX_UPLOAD_MB} MB",
         )
         if uploaded is not None:
-            raw_bytes = uploaded.read()
+            raw_bytes = uploaded.getvalue()
 
             # Validate size
             if len(raw_bytes) > MAX_UPLOAD_MB * 1024 * 1024:
@@ -411,9 +669,9 @@ def render_sidebar():
 
             h = upload_hash(raw_bytes)
 
-            # Only re-process if this is a new upload
-            if st.session_state.upload_hash != h:
-                _clear_floorplan_state()
+            # Only process a file once. Marking the hash before processing
+            # means a failed upload is not retried on every Streamlit rerun.
+            if _begin_upload(st.session_state, h):
                 tmpdir = get_upload_workdir(get_session_tmpdir(), h)
 
                 # Save raw upload to workdir
@@ -425,28 +683,47 @@ def render_sidebar():
                     try:
                         _process_floorplan(img_path, tmpdir)
                         st.session_state.floor_source = "upload"
-                        st.session_state.upload_hash = h
                         st.session_state.workdir = tmpdir
                         st.sidebar.success("Floor plan processed successfully.")
                     except Exception as exc:
                         log.exception("Upload processing failed")
+                        _clear_floorplan_state()
+                        st.session_state.upload_hash = h
                         st.sidebar.error(f"Processing failed: {exc}")
-                        # Do NOT silently fall back to demo
-                        return
+
+            # Render the retry control outside the one-shot processing block,
+            # so it remains visible after a failure without auto-retrying on
+            # every rerun. The callback resets the hash before the next run.
+            if (
+                st.session_state.get("upload_hash") == h
+                and st.session_state.get("floorplan") is None
+            ):
+                st.sidebar.button(
+                    "Retry processing",
+                    key="retry_upload",
+                    on_click=_retry_upload,
+                    width="stretch",
+                )
 
     st.sidebar.markdown("---")
     st.sidebar.markdown("### ⚙️ Processing Info")
     if st.session_state.floorplan:
         fp = st.session_state.floorplan
+        source_size = (
+            f"{fp.source_width} × {fp.source_height}"
+            if fp.source_width and fp.source_height
+            else f"{fp.image_width} × {fp.image_height}"
+        )
         st.sidebar.caption(
-            f"Image: {fp.image_width} × {fp.image_height} px\n"
+            f"Source image: {source_size} px\n"
+            f"Processed: {fp.image_width} × {fp.image_height} px\n"
             f"Rooms: {len(fp.rooms)} | Corridors: {len(fp.corridors)}\n"
             f"Doors: {len(fp.doors)} | Walls: {len(fp.walls)}"
         )
     else:
         st.sidebar.caption("No floor plan loaded yet.")
 
-    _render_ollama_sidebar()
+    _render_llm_configuration()
 
 
 # ===========================================================================
@@ -482,6 +759,14 @@ def render_detection_panel():
             unsafe_allow_html=True,
         )
 
+    graph = st.session_state.graph
+    isolated = list(graph.graph.get("isolated_nodes", [])) if graph is not None else []
+    if isolated:
+        st.warning(
+            "No door was detected for these regions, so they cannot be used as "
+            f"navigation endpoints yet: {', '.join(isolated)}"
+        )
+
     # -----------------------------------------------------------------------
     # Floor plan images: original + annotated
     # -----------------------------------------------------------------------
@@ -490,11 +775,11 @@ def render_detection_panel():
     with c_orig:
         st.markdown("**Original Floor Plan**")
         if st.session_state.orig_img_bytes:
-            st.image(st.session_state.orig_img_bytes, use_container_width=True)
+            st.image(st.session_state.orig_img_bytes, width="stretch")
     with c_ann:
         st.markdown("**Annotated Detections**")
         if st.session_state.annotated_img_bytes:
-            st.image(st.session_state.annotated_img_bytes, use_container_width=True)
+            st.image(st.session_state.annotated_img_bytes, width="stretch")
         st.caption(
             "🟩 Rooms&nbsp;&nbsp; 🟨 Corridors&nbsp;&nbsp; 🟣 Doors (D#)&nbsp;&nbsp; 🔴 Walls"
         )
@@ -505,19 +790,24 @@ def render_detection_panel():
     workdir: Optional[Path] = st.session_state.workdir
     if workdir:
         debug_files = {
-            "Rooms Debug": workdir / "rooms_debug.png",
-            "Doors Debug": workdir / "doors_debug.png",
-            "Corridors Debug": workdir / "corridors_debug.png",
-            "Walls Debug": workdir / "walls_debug.png",
+            "Source Overlay": workdir / "source_overlay_debug.png",
+            "Regions": workdir / "segmentation_masks_debug.png",
+            "Rooms": workdir / "rooms_debug.png",
+            "Doors": workdir / "doors_debug.png",
+            "Door Candidates": workdir / "door_candidates_debug.png",
+            "Corridors": workdir / "corridors_debug.png",
+            "Walls": workdir / "walls_debug.png",
+            "Wall Candidates": workdir / "wall_candidates_debug.png",
+            "Wall Mask": workdir / "walls_bin_debug.png",
+            "Closed Walls": workdir / "closed_walls_debug.png",
         }
         available_debug = {k: p for k, p in debug_files.items() if p.exists()}
         if available_debug:
-            with st.expander("🔍 Debug Visualizations", expanded=False):
-                dcols = st.columns(len(available_debug))
-                for col, (label, path) in zip(dcols, available_debug.items()):
-                    with col:
-                        st.markdown(f"**{label}**")
-                        st.image(str(path), use_container_width=True)
+            with st.expander("Debug Visualizations", expanded=False):
+                debug_tabs = st.tabs(list(available_debug.keys()))
+                for tab, path in zip(debug_tabs, available_debug.values()):
+                    with tab:
+                        st.image(str(path), width="stretch")
 
     # -----------------------------------------------------------------------
     # Detected Rooms Explorer
@@ -531,7 +821,7 @@ def render_detection_panel():
         if room_rows:
             st.dataframe(
                 room_rows,
-                use_container_width=True,
+                width="stretch",
                 hide_index=True,
                 column_config={
                     "ID": st.column_config.TextColumn("Node ID"),
@@ -540,8 +830,8 @@ def render_detection_panel():
                 },
             )
             st.caption(
-                "⚠️ Room IDs are assigned automatically by the CV pipeline (Region_1, Room_2 …). "
-                "Semantic names (Reception, Room 101 …) are resolved via the query parser's alias map."
+                "⚠️ Room IDs are assigned automatically by the CV pipeline (Room_1, Room_2 …). "
+                "Printed names require OCR; demo aliases such as Reception/Room 101 apply only to the built-in demo."
             )
         else:
             st.warning("No rooms or corridors detected.")
@@ -549,7 +839,7 @@ def render_detection_panel():
     with tab_doors:
         door_rows = doors_to_table(fp)
         if door_rows:
-            st.dataframe(door_rows, use_container_width=True, hide_index=True)
+            st.dataframe(door_rows, width="stretch", hide_index=True)
         else:
             st.warning("No doors detected.")
 
@@ -564,7 +854,7 @@ def render_detection_panel():
                 }
                 for c in fp.connections
             ]
-            st.dataframe(conn_rows, use_container_width=True, hide_index=True)
+            st.dataframe(conn_rows, width="stretch", hide_index=True)
         else:
             st.warning("No connections detected. Navigation may not be available.")
 
@@ -572,6 +862,28 @@ def render_detection_panel():
 # ===========================================================================
 # NAVIGATION PANEL
 # ===========================================================================
+
+def _navigation_examples(fp, is_demo: bool):
+    """Build example queries from the loaded plan instead of demo-only names."""
+    if is_demo:
+        return DEMO_QUERIES
+    room_names = [room.name for room in fp.rooms]
+    corridor_names = [corridor.name for corridor in fp.corridors]
+    if len(room_names) < 2:
+        return DEMO_QUERIES
+    first, second = room_names[0], room_names[1]
+    third = room_names[2] if len(room_names) > 2 else first
+    examples = [
+        f"How do I get from {first} to {second}?",
+        f"Navigate from {second} to {third}.",
+        f"Where is {second}?",
+    ]
+    if corridor_names:
+        examples.append(f"How do I reach the corridor from {first}?")
+    else:
+        examples.append(f"Find a route from {third} to {first}.")
+    return examples
+
 
 def render_navigation_panel():
     fp = st.session_state.floorplan
@@ -604,23 +916,29 @@ def render_navigation_panel():
     # -----------------------------------------------------------------------
     # Query input + example buttons
     # -----------------------------------------------------------------------
+    examples = _navigation_examples(
+        fp, st.session_state.get("floor_source") == "demo"
+    )
     st.markdown("**Enter a navigation query:**")
     query_input = st.text_input(
         label="Navigation query",
-        value=st.session_state.get("nav_query_input", ""),
-        placeholder='e.g. "How do I get from Reception to Room 104?"',
+        placeholder=f'e.g. "{examples[0]}"',
         label_visibility="collapsed",
         key="nav_query_input",
     )
 
     st.markdown("**Quick examples:**")
-    eq_cols = st.columns(len(DEMO_QUERIES))
-    for col, example in zip(eq_cols, DEMO_QUERIES):
-        if col.button(f'"{example}"', key=f"eq_{hash(example)}", use_container_width=True):
-            st.session_state.nav_query_input = example
-            st.rerun()
+    eq_cols = st.columns(len(examples))
+    for idx, example in enumerate(examples):
+        eq_cols[idx].button(
+            f'"{example}"',
+            key=f"eq_{idx}",
+            on_click=_set_nav_query,
+            args=(example,),
+            width="stretch",
+        )
 
-    nav_submit = st.button("🧭 Navigate", type="primary", use_container_width=False)
+    nav_submit = st.button("🧭 Navigate", type="primary", width="content")
 
     if nav_submit and query_input.strip():
         _run_navigation(query_input.strip(), fp, G)
@@ -636,6 +954,11 @@ def _run_navigation(query: str, fp, G):
     """Call the existing NavigationService and store result in session state."""
     client = _get_ollama_client()
     is_up, _ = client.check_availability()
+
+    # Clear any previous result/overlay so a failed attempt cannot display a
+    # stale route from an earlier query.
+    st.session_state.nav_result = None
+    st.session_state.route_img_bytes = None
 
     with st.spinner("Computing route…"):
         try:
@@ -659,7 +982,8 @@ def _run_navigation(query: str, fp, G):
                         np.frombuffer(st.session_state.annotated_img_bytes, np.uint8),
                         cv2.IMREAD_COLOR,
                     )
-                    overlay = draw_route_overlay(ann_img, fp, route)
+                    route_fp = st.session_state.get("floorplan_source") or fp
+                    overlay = draw_route_overlay(ann_img, route_fp, route)
                     st.session_state.route_img_bytes = numpy_to_bytes(overlay)
         except FileNotFoundError:
             st.session_state.nav_result = {
@@ -699,17 +1023,21 @@ def _render_nav_result():
     method = res.get("method", "unknown")
     is_llm = res.get("is_llm_generated", False)
 
-    # ---- Route summary card ----
-    path_arrow = " → ".join(path) if path else "—"
-    doors_str = " → ".join(doors) if doors else "None"
+    # ---- Route summary card (all dynamic text is HTML-escaped) ----
+    path_arrow = " → ".join(html.escape(str(p)) for p in path) if path else "—"
+    doors_str = " → ".join(html.escape(str(d)) for d in doors) if doors else "None"
+    method_str = html.escape(str(method))
+    instructions_label = (
+        f"LLM ({method_str})" if is_llm else "Deterministic fallback"
+    )
 
     st.markdown(
         f"""
 <div class="route-card">
   <div class="path-row">🗺️ {path_arrow}</div>
   <div class="meta">🚪 Doors: {doors_str}</div>
-  <div class="meta">📏 Route cost: <strong>{dist:.1f} pixels</strong> · {hops} hop(s)</div>
-  <div class="meta">🤖 Instructions: <strong>{'LLM (' + method + ')' if is_llm else 'Deterministic fallback'}</strong></div>
+  <div class="meta">📏 Route cost: <strong>{float(dist):.1f} pixels</strong> · {int(hops)} hop(s)</div>
+  <div class="meta">🤖 Instructions: <strong>{instructions_label}</strong></div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -720,7 +1048,7 @@ def _render_nav_result():
 
     # ---- Navigation instructions ----
     st.markdown("**Navigation Instructions**")
-    explanation = res.get("explanation", "")
+    explanation = html.escape(str(res.get("explanation", "")))
     st.markdown(
         f'<div class="instruction-box">{explanation}</div>',
         unsafe_allow_html=True,
@@ -739,7 +1067,7 @@ def _render_nav_result():
     with col_route:
         st.markdown("**Route Overlay on Floor Plan**")
         if st.session_state.route_img_bytes:
-            st.image(st.session_state.route_img_bytes, use_container_width=True)
+            st.image(st.session_state.route_img_bytes, width="stretch")
             st.caption(
                 "🟢 Source  🔴 Destination  🟡 Intermediate  🔵 Route doors  ↗ Direction"
             )
@@ -752,8 +1080,7 @@ def _render_nav_result():
         G = st.session_state.graph
         if fp and G:
             fig = build_graph_figure(G, fp, highlighted_path=path)
-            st.pyplot(fig, use_container_width=True)
-            plt_import = fig  # keep reference to close
+            st.pyplot(fig, width="stretch")
             import matplotlib.pyplot as plt_mod
             plt_mod.close(fig)
 
@@ -799,7 +1126,7 @@ def render_graph_panel():
     with col_graph:
         import matplotlib.pyplot as plt_mod
         fig = build_graph_figure(G, fp, highlighted_path=[])
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width="stretch")
         plt_mod.close(fig)
 
 
@@ -814,13 +1141,15 @@ def main():
     render_sidebar()
 
     # Header
+    selected_model = st.session_state.get("selected_model")
+    model_label = html.escape(selected_model) if selected_model else "Ollama"
     st.markdown(
-        """
+        f"""
 <div class="mapmind-header">
   <h1>🗺️ MapMind</h1>
   <p>
     Vision-Based Indoor Floor Plan Understanding and Natural Language Navigation Using Local LLMs<br>
-    <small>Phase 1–5 · OpenCV · NetworkX · A* Pathfinding · Ollama (<code>qwen3.5:4b</code>)</small>
+    <small>Phase 1–5 · OpenCV · NetworkX · A* Pathfinding · Ollama (<code>{model_label}</code>)</small>
   </p>
 </div>
 """,

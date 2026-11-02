@@ -1,6 +1,19 @@
+import re
 from typing import Optional, Dict, Any, List
 from cv.models import Route, FloorPlan
 from .ollama_client import OllamaClient, OllamaError
+
+
+def _has_grounding_violation(text: str, route: Route) -> bool:
+    """Reject LLM text that references places outside the computed route."""
+    allowed = set(route.path) | set(route.doors)
+    for match in re.finditer(r"\b(Room|Corridor|Door)[ _](\d+)\b", text, re.IGNORECASE):
+        reference = f"{match.group(1).title()}_{match.group(2)}"
+        if reference not in allowed:
+            return True
+    if re.search(r"\bturn\s+(left|right)\b", text, re.IGNORECASE):
+        return True
+    return False
 
 
 def deterministic_route_explanation(route: Route, floorplan: Optional[FloorPlan] = None) -> str:
@@ -120,7 +133,7 @@ class NavigationResponseGenerator:
                 temperature=0.2,
                 timeout=self.ollama_client.timeout,
             )
-            if llm_text:
+            if llm_text and not _has_grounding_violation(llm_text, route):
                 return {
                     "explanation": llm_text,
                     "is_llm_generated": True,

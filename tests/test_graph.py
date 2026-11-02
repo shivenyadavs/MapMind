@@ -11,9 +11,16 @@ from graph.pathfinder import shortest_path, get_path_distance
 
 
 @pytest.fixture(scope="module")
-def sample_floorplan():
-    img_path = generate_synthetic_floorplan()
-    return parse_floorplan(img_path)
+def graph_test_dirs(tmp_path_factory):
+    base = tmp_path_factory.mktemp("graph")
+    return base / "raw", base / "processed"
+
+
+@pytest.fixture(scope="module")
+def sample_floorplan(graph_test_dirs):
+    raw_dir, processed_dir = graph_test_dirs
+    img_path = generate_synthetic_floorplan(output_dir=raw_dir)
+    return parse_floorplan(img_path, output_dir=processed_dir)
 
 
 @pytest.fixture(scope="module")
@@ -22,9 +29,10 @@ def navigation_graph(sample_floorplan):
 
 
 @pytest.fixture(scope="module")
-def second_floorplan():
-    img_path = generate_second_floorplan()
-    return parse_floorplan(img_path)
+def second_floorplan(graph_test_dirs):
+    raw_dir, processed_dir = graph_test_dirs
+    img_path = generate_second_floorplan(output_dir=raw_dir)
+    return parse_floorplan(img_path, output_dir=processed_dir)
 
 
 def test_floorplan_json_serialization(sample_floorplan, tmp_path):

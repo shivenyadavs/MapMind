@@ -55,27 +55,46 @@ class QueryParser:
                 self.alias_map["corridor"] = c.name
                 self.alias_map["hallway"] = c.name
 
-        # Standard architectural aliases for the canonical MapMind sample plan
-        sample_aliases = {
-            "reception": "Room_1",
-            "front desk": "Room_1",
-            "lobby": "Room_1",
-            "room 101": "Room_2",
-            "r101": "Room_2",
-            "101": "Room_2",
-            "room 102": "Room_3",
-            "r102": "Room_3",
-            "102": "Room_3",
-            "room 103": "Room_4",
-            "r103": "Room_4",
-            "103": "Room_4",
-            "room 104": "Room_5",
-            "r104": "Room_5",
-            "104": "Room_5",
-        }
-        for alias, node_id in sample_aliases.items():
-            if node_id in self.available_nodes or not self.available_nodes:
+        if self._is_canonical_demo_plan():
+            sample_aliases = {
+                "reception": "Room_1",
+                "front desk": "Room_1",
+                "lobby": "Room_1",
+                "room 101": "Room_2",
+                "r101": "Room_2",
+                "101": "Room_2",
+                "room 102": "Room_3",
+                "r102": "Room_3",
+                "102": "Room_3",
+                "room 103": "Room_4",
+                "r103": "Room_4",
+                "103": "Room_4",
+                "room 104": "Room_5",
+                "r104": "Room_5",
+                "104": "Room_5",
+            }
+            for alias, node_id in sample_aliases.items():
                 self.alias_map[alias] = node_id
+
+    def _is_canonical_demo_plan(self) -> bool:
+        """Only apply demo aliases to the bundled five-room sample.
+
+        Applying ``Reception``/``Room 101`` aliases to arbitrary uploads used
+        to route queries to unrelated regions on larger plans with a ``Room_1``
+        through ``Room_5``.
+        """
+        if self.floorplan is None:
+            return False
+        rooms = self.floorplan.rooms
+        corridors = self.floorplan.corridors
+        if len(rooms) != 5 or len(corridors) != 1:
+            return False
+        expected = {f"Room_{i}" for i in range(1, 6)}
+        return (
+            {room.name for room in rooms} == expected
+            and corridors[0].name == "Corridor_1"
+            and all(room.label_source != "ocr" for room in rooms)
+        )
 
     def resolve_node_id(self, term: Optional[str]) -> Optional[str]:
         """Resolve a raw room name or term to a canonical graph node ID."""
@@ -83,6 +102,8 @@ class QueryParser:
             return None
         cleaned = term.strip().lower()
         cleaned = re.sub(r"[^\w\s]", "", cleaned).strip()
+        # Allow natural phrasing such as "the corridor" or "a room"
+        cleaned = re.sub(r"^(?:the|a|an)\s+", "", cleaned, flags=re.IGNORECASE).strip()
 
         # Direct alias lookup
         if cleaned in self.alias_map:
@@ -103,23 +124,45 @@ class QueryParser:
         """Extract candidate source and destination using robust regex patterns."""
         q = query.strip()
 
-        # Pattern 1: from X to Y
-        m = re.search(r"\bfrom\s+(?P<src>.+?)\s+to\s+(?P<dst>[^.?!]+)", q, re.IGNORECASE)
+        # Pattern 1: from X to Y (most explicit phrasing)
+        m = re.search(r"\bfrom\s+(?P<src>.+?)\s+to\s+(?P<dst>[^.?!,;]+)", q, re.IGNORECASE)
         if m:
             return m.group("src").strip(), m.group("dst").strip()
 
-        # Pattern 2: navigate / route between X and Y
-        m = re.search(r"\b(?:between|connecting)\s+(?P<src>.+?)\s+and\s+(?P<dst>[^.?!]+)", q, re.IGNORECASE)
+        # Pattern 2: "<verb> X from Y" — e.g.
+        # "How do I reach the corridor from Room 103?"
+        # "How do I get to Room 104 from Reception?"
+        m = re.search(
+            r"\b(?:reach|get(?:\s+to)?|go(?:\s+to)?|walk(?:\s+to)?|head(?:\s+to)?"
+            r"|navigate(?:\s+to)?|route(?:\s+to)?)\s+"
+            r"(?P<dst>.+?)\s+from\s+(?P<src>[^.?!,;]+)",
+            q,
+            re.IGNORECASE,
+        )
         if m:
             return m.group("src").strip(), m.group("dst").strip()
 
-        # Pattern 3: navigate X to Y
-        m = re.search(r"\b(?:navigate|route|go)\s+(?P<src>.+?)\s+to\s+(?P<dst>[^.?!]+)", q, re.IGNORECASE)
+        # Pattern 3: navigate / route between X and Y
+        m = re.search(r"\b(?:between|connecting)\s+(?P<src>.+?)\s+and\s+(?P<dst>[^.?!,;]+)", q, re.IGNORECASE)
         if m:
             return m.group("src").strip(), m.group("dst").strip()
 
-        # Pattern 4: "where is X" / "how to get to X"
-        m = re.search(r"\b(?:where is|how to get to|find|locate)\s+(?P<dst>[^.?!]+)", q, re.IGNORECASE)
+        # Pattern 4: navigate X to Y (without the word "from")
+        m = re.search(r"\b(?:navigate|route|go)\s+(?P<src>.+?)\s+to\s+(?P<dst>[^.?!,;]+)", q, re.IGNORECASE)
+        if m:
+            return m.group("src").strip(), m.group("dst").strip()
+
+        # Pattern 5: destination-only verb phrasing — "get to X", "reach X"
+        m = re.search(
+            r"\b(?:navigate|route|go|walk|head|get|reach)\s+(?:to\s+)?(?P<dst>[^.?!,;]+)",
+            q,
+            re.IGNORECASE,
+        )
+        if m:
+            return None, m.group("dst").strip()
+
+        # Pattern 6: "where is X" / "find X" / "locate X"
+        m = re.search(r"\b(?:where is|where's|how to get to|find|locate)\s+(?P<dst>[^.?!,;]+)", q, re.IGNORECASE)
         if m:
             return None, m.group("dst").strip()
 
@@ -206,6 +249,7 @@ class QueryParser:
                         f"Please specify a valid start from: {sorted(list(self.available_nodes))}."
                     ),
                 )
+            example_start = next(iter(sorted(self.available_nodes)), "Room_1")
             return ParsedQuery(
                 raw_query=query,
                 source=None,
@@ -213,7 +257,7 @@ class QueryParser:
                 is_valid=False,
                 clarification_needed=(
                     f"Destination identified as '{resolved_dst}'. "
-                    f"Please specify where you are starting from (e.g. 'from Reception')."
+                    f"Please specify where you are starting from (e.g. 'from {example_start}')."
                 ),
             )
 

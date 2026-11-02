@@ -1,0 +1,146 @@
+{
+  "nodes": [
+    {
+      "id": "Room_1",
+      "type": "room",
+      "center": [
+        96,
+        123
+      ],
+      "area": 23555,
+      "bounding_box": [
+        24,
+        21,
+        166,
+        223
+      ]
+    },
+    {
+      "id": "Room_2",
+      "type": "room",
+      "center": [
+        336,
+        225
+      ],
+      "area": 37491,
+      "bounding_box": [
+        269,
+        45,
+        413,
+        387
+      ]
+    },
+    {
+      "id": "Room_3",
+      "type": "room",
+      "center": [
+        223,
+        119
+      ],
+      "area": 4176,
+      "bounding_box": [
+        173,
+        96,
+        270,
+        142
+      ]
+    },
+    {
+      "id": "Room_4",
+      "type": "room",
+      "center": [
+        101,
+        316
+      ],
+      "area": 16187,
+      "bounding_box": [
+        38,
+        231,
+        164,
+        387
+      ]
+    },
+    {
+      "id": "Room_5",
+      "type": "room",
+      "center": [
+        216,
+        314
+      ],
+      "area": 4547,
+      "bounding_box": [
+        176,
+        285,
+        257,
+        343
+      ]
+    },
+    {
+      "id": "Room_6",
+      "type": "room",
+      "center": [
+        216,
+        420
+      ],
+      "area": 4131,
+      "bounding_box": [
+        176,
+        395,
+        257,
+        446
+      ]
+    },
+    {
+      "id": "Corridor_1",
+      "type": "corridor",
+      "center": [
+        228,
+        201
+      ],
+      "area": 6638,
+      "bounding_box": [
+        173,
+        150,
+        271,
+        239
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "Room_1",
+      "target": "Corridor_1",
+      "door_id": "Door_3",
+      "weight": 175.0,
+      "distance": 175.0
+    },
+    {
+      "source": "Room_2",
+      "target": "Corridor_1",
+      "door_id": "Door_2",
+      "weight": 125.2,
+      "distance": 125.2
+    },
+    {
+      "source": "Room_3",
+      "target": "Corridor_1",
+      "door_id": "Door_1",
+      "weight": 95.8,
+      "distance": 95.8
+    },
+    {
+      "source": "Room_4",
+      "target": "Corridor_1",
+      "door_id": "Door_4",
+      "weight": 173.8,
+      "distance": 173.8
+    },
+    {
+      "source": "Room_5",
+      "target": "Corridor_1",
+      "door_id": "Door_5",
+      "weight": 115.9,
+      "distance": 115.9
+    }
+  ]
+}

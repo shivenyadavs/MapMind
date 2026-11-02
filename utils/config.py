@@ -17,8 +17,10 @@ ANNOTATIONS_DIR = PROJECT_ROOT / "data" / "annotations"
 for _dir in (RAW_DATA_DIR, PROCESSED_DATA_DIR, ANNOTATIONS_DIR):
     _dir.mkdir(parents=True, exist_ok=True)
 
-# Default image dimensions for resizing (width, height)
-DEFAULT_MAX_DIMENSION = 1024  # longest side will be resized to this value
+# Default maximum image dimension used by the CV pipeline.
+# The parser, debug renderer, and frontend all share this value so that
+# image-coordinate handling stays consistent.
+DEFAULT_MAX_DIMENSION = 1200  # longest side will be resized to this value
 
 
 def load_env(env_path: Path = PROJECT_ROOT / ".env") -> None:

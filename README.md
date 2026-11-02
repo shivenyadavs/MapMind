@@ -36,6 +36,34 @@ User Query → QueryParser → A* Pathfinder → OllamaClient → Instructions
 frontend/app.py  →  Interactive web app at http://localhost:8501
 ```
 
+### CV Configuration
+
+The parser is ratio-based and configurable:
+
+```python
+from cv.floorplan_parser import parse_floorplan
+from cv.pipeline_config import CVConfig
+
+fp = parse_floorplan(
+    "plan.png",
+    output_dir="data/processed",
+    config=CVConfig(max_dimension=1200, debug=False),
+)
+print(fp.diagnostics)
+```
+
+Detections are stored in working-resolution coordinates (`fp.image_width/height`).
+Original-image dimensions are in `fp.source_width/source_height`; use
+`cv.coordinates.scale_floorplan_to_source(fp)` before drawing on the original
+upload. With `debug=True`, debug images are written to `output_dir`.
+
+By default the parser suppresses isolated printed labels (which otherwise
+binarise as short walls) and evaluates several door-closing gap sizes, choosing
+the one that yields the most valid rooms/corridors. This keeps large apartment
+rooms and densely packed mall units on the same defaults. Set
+`CVConfig(adaptive_segmentation=False, segmentation_gap_ratio=...)` to force a
+single gap for experiments.
+
 ---
 
 ## Installation & Setup
@@ -72,6 +100,8 @@ OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=qwen3.5:4b
 OLLAMA_TIMEOUT=30
 ```
+
+`OLLAMA_MODEL` sets the initial default. In the app sidebar, **LLM Model Configuration** lists every model installed in Ollama; choose any of them at runtime without restarting. The selection applies to subsequent navigation requests and the **Test Selected Model** button.
 
 ---
 
@@ -132,15 +162,18 @@ python main.py --query "from Reception to Room 104" --no-llm
 pytest -q
 ```
 
-**68 tests pass** across all phases:
+**117 tests pass** across all phases:
 
 | File | Tests | Coverage |
 |------|-------|----------|
 | `tests/test_preprocessing.py` | 4 | Phase 1 image processing |
-| `tests/test_floorplan_parser.py` | 10 | Phase 2 CV parser |
-| `tests/test_graph.py` | 8 | Phase 3 graph topology |
-| `tests/test_phase4.py` | 15 | Phase 4 A*, LLM client, query parser |
+| `tests/test_floorplan_parser.py` | 5 | Phase 2 CV parser |
+| `tests/test_graph.py` | 11 | Phase 3 graph topology |
+| `tests/test_phase4.py` | 18 | Phase 4 A*, LLM client, query parser |
 | `tests/test_phase5.py` | 31 | Phase 5 UI helpers, fallback, isolation |
+| `tests/test_bugfixes.py` | 21 | Regression tests for the reliability fixes |
+| `tests/test_model_selector.py` | 13 | Model discovery, selection, switching, fallback |
+| `tests/test_cv_improvements.py` | 12 | Coordinates, CV config, OCR fallback, graph validation |
 
 ---
 
@@ -151,6 +184,9 @@ mapmind/
 ├── cv/                       # Phases 1-2: OpenCV pipeline
 │   ├── preprocessing.py      # Image loading, denoising, synthetic floor plan
 │   ├── floorplan_parser.py   # Detection: rooms, doors, corridors, walls, connections
+│   ├── pipeline_config.py    # Ratio-based CV thresholds
+│   ├── coordinates.py        # Working ↔ source coordinate conversion
+│   ├── ocr.py                # Optional printed-label OCR
 │   ├── visualization.py      # Annotated floor-plan rendering
 │   └── models.py             # Pydantic data models
 ├── graph/                    # Phase 3: Navigation graph
@@ -164,7 +200,7 @@ mapmind/
 ├── frontend/                 # Phase 5: Streamlit application
 │   ├── app.py                # Main Streamlit application
 │   └── ui_helpers.py         # Stateless helper functions (image, graph, tables)
-├── tests/                    # All test suites (68 tests)
+├── tests/                    # All test suites (117 tests)
 ├── data/
 │   ├── raw/                  # Sample floor plan images
 │   └── processed/            # Generated artifacts (JSON, PNG)
@@ -198,7 +234,9 @@ All non-LLM features work without an Ollama server:
 
 - **Pixel-Based Distance:** Route costs are in image pixels. No real-world metric scale (metres) is available without calibration metadata.
 - **Undirected Doorways:** All detected doors assume two-way transit.
-- **No OCR:** Room IDs are auto-assigned (`Room_1`, `Room_2` …). Semantic labels like "Reception" rely on the alias map in `query_parser.py`, not text recognition.
-- **CV Accuracy:** Detection quality depends on floor-plan contrast and wall clarity. Very low-contrast or complex images may yield fewer detected regions.
+- **Optional OCR:** Room IDs are auto-assigned by default. If `pytesseract` and the Tesseract executable are installed, printed labels are associated with segmented regions; unknown text is kept as its printed name without inventing a category. Without OCR, mall stores/restaurants remain `Room_N`; demo aliases (Reception/Room 101) apply only to the bundled five-room sample and are not mapped onto uploads. OCR has not been validated against a real mall plan in this repository.
+- **CV Accuracy:** Detection quality depends on floor-plan contrast and wall clarity. Very low-contrast or complex images may yield fewer detected regions. Mall plans can still merge wide/L-shaped halls into room regions, and some small store doors may be missed, leaving isolated nodes. No annotated mall benchmark or ground truth is included, so mall-specific precision/recall is not measured.
+- **LLM Grounding:** LLM explanations are rejected when they mention room/door IDs outside the computed route or invent left/right turns; the deterministic explanation is shown instead.
+- **Working Resolution:** Detection runs at a configurable working resolution (default longest side 1200 px). Detections are stored in working coordinates and scaled back to source coordinates for overlays; very small doors may be lost during downscaling.
 - **Single Floor Only:** Multi-storey plans are not supported.
 - **Upload Persistence:** Uploaded floor-plan processing results are stored in the server's temp directory and are not persisted across server restarts.

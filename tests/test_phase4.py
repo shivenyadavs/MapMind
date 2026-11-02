@@ -29,9 +29,16 @@ from navigation_service import NavigationService
 
 
 @pytest.fixture(scope="module")
-def sample_floorplan():
-    img_path = generate_synthetic_floorplan()
-    return parse_floorplan(img_path)
+def phase4_dirs(tmp_path_factory):
+    base = tmp_path_factory.mktemp("phase4")
+    return base / "raw", base / "processed"
+
+
+@pytest.fixture(scope="module")
+def sample_floorplan(phase4_dirs):
+    raw_dir, processed_dir = phase4_dirs
+    img_path = generate_synthetic_floorplan(output_dir=raw_dir)
+    return parse_floorplan(img_path, output_dir=processed_dir)
 
 
 @pytest.fixture(scope="module")
@@ -244,13 +251,49 @@ def test_response_generator_fallback(navigation_graph, sample_floorplan):
     assert "Start in Room_2" in res["explanation"]
 
 
+def test_response_generator_rejects_hallucinated_locations(
+    navigation_graph, sample_floorplan
+):
+    client = MagicMock()
+    client.check_availability.return_value = (True, "ok")
+    client.is_model_installed.return_value = True
+    client.model = "fake-model"
+    client.timeout = 30
+    client.generate.return_value = (
+        "Start in Room_1, then walk through Door_1 into Room_99 and turn left."
+    )
+    generator = NavigationResponseGenerator(ollama_client=client)
+
+    route = astar_path(navigation_graph, "Room_1", "Room_5")
+    res = generator.generate_explanation(route, sample_floorplan, use_llm=True)
+
+    assert not res["is_llm_generated"]
+    assert "deterministic_fallback" in res["method"]
+    assert "Room_99" not in res["explanation"]
+
+
 # =========================================================================
 # 5. Navigation Service Integration Tests
 # =========================================================================
 
-def test_navigation_service_end_to_end():
-    """Test NavigationService query processing pipeline."""
-    service = NavigationService()
+def test_navigation_service_end_to_end(sample_floorplan, tmp_path):
+    """Test NavigationService query processing pipeline without repo artifacts."""
+    from cv.floorplan_parser import save_floorplan_json
+
+    fp_path = tmp_path / "floorplan.json"
+    save_floorplan_json(sample_floorplan, fp_path)
+
+    mock_client = MagicMock()
+    mock_client.check_availability.return_value = (False, "offline")
+    mock_client.is_model_installed.return_value = False
+    mock_client.model = "qwen3.5:4b"
+    mock_client.timeout = 30
+
+    service = NavigationService(
+        floorplan_path=fp_path,
+        ollama_client=mock_client,
+        auto_load=True,
+    )
     res = service.navigate("How do I get from Reception to Room 104?", use_llm=False)
 
     assert res["status"] == "success"

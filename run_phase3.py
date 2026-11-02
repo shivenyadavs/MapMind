@@ -1,13 +1,17 @@
+import os
 import shutil
 from pathlib import Path
 
+from cv.coordinates import scale_floorplan_to_source
 from cv.preprocessing import generate_synthetic_floorplan, load_floorplan
 from cv.floorplan_parser import parse_floorplan, save_floorplan_json
-from graph.graph_builder import NavigationGraphBuilder, save_navigation_graph_json
+from graph.graph_builder import NavigationGraphBuilder
 from graph.pathfinder import shortest_path
 from graph.graph_visualizer import visualize_navigation_graph
 
-ARTIFACT_DIR = Path(r"C:\Users\shive\.gemini\antigravity-ide\brain\06f8d4de-7323-458f-b65c-4250738f0e40")
+# Optional mirror directory for IDEs/tools. Set MAPMIND_ARTIFACT_DIR to enable.
+_artifact_env = os.getenv("MAPMIND_ARTIFACT_DIR")
+ARTIFACT_DIR = Path(_artifact_env) if _artifact_env else None
 PROCESSED_DIR = Path("data/processed")
 
 
@@ -21,23 +25,27 @@ def main():
     # 2. Run CV floor-plan understanding pipeline (Phase 2 + Phase 3 connections)
     fp = parse_floorplan(sample_path)
 
-    # 3. Save structured FloorPlan JSON
-    floorplan_json_path = PROCESSED_DIR / "floorplan.json"
-    save_floorplan_json(fp, floorplan_json_path)
+    # 3. Express geometry in original-image coordinates for all persisted
+    #    artifacts and overlays, regardless of the parser's working resolution.
+    fp_source = scale_floorplan_to_source(fp)
 
-    # 4. Build NetworkX Navigation Graph
-    builder = NavigationGraphBuilder(fp)
+    # 4. Save structured FloorPlan JSON
+    floorplan_json_path = PROCESSED_DIR / "floorplan.json"
+    save_floorplan_json(fp_source, floorplan_json_path)
+
+    # 5. Build NetworkX Navigation Graph
+    builder = NavigationGraphBuilder(fp_source)
     G = builder.graph
 
-    # 5. Save Navigation Graph JSON
+    # 6. Save Navigation Graph JSON
     graph_json_path = PROCESSED_DIR / "navigation_graph.json"
     builder.save_json(graph_json_path)
 
-    # 6. Generate Visualization
+    # 7. Generate Visualization
     graph_viz_path = PROCESSED_DIR / "navigation_graph.png"
-    visualize_navigation_graph(G, fp, background_image=orig_img, output_path=graph_viz_path)
+    visualize_navigation_graph(G, fp_source, background_image=orig_img, output_path=graph_viz_path)
 
-    # 7. Test Example Routes
+    # 8. Test Example Routes
     routes_to_test = [
         ("Room_1", "Room_2"),
         ("Room_1", "Room_3"),
@@ -49,14 +57,14 @@ def main():
     for src, dst in routes_to_test:
         computed_routes[f"{src} -> {dst}"] = shortest_path(G, src, dst)
 
-    # 8. Mirror files to IDE Artifact Directory
-    if ARTIFACT_DIR.exists():
+    # 9. Mirror files to IDE Artifact Directory (optional)
+    if ARTIFACT_DIR is not None and ARTIFACT_DIR.exists():
         for fname in ["floorplan.json", "navigation_graph.json", "navigation_graph.png", "detected_floorplan.png"]:
             src_f = PROCESSED_DIR / fname
             if src_f.exists():
                 shutil.copy(src_f, ARTIFACT_DIR / fname)
 
-    # 9. Formatted Console Report
+    # 10. Formatted Console Report
     print()
     print("========================================")
     print("MAPMIND NAVIGATION GRAPH")

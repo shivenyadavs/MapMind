@@ -1,0 +1,481 @@
+{
+  "image_path": "c:\\Users\\shive\\mapmind\\data\\raw\\sample_floorplan.png",
+  "image_width": 800,
+  "image_height": 600,
+  "rooms": [
+    {
+      "id": 1,
+      "name": "Room_1",
+      "bounding_box": {
+        "x": 105,
+        "y": 65,
+        "width": 593,
+        "height": 143
+      },
+      "center": [
+        401,
+        136
+      ],
+      "width": 593,
+      "height": 143,
+      "area": 84799
+    },
+    {
+      "id": 2,
+      "name": "Room_2",
+      "bounding_box": {
+        "x": 105,
+        "y": 295,
+        "width": 293,
+        "height": 118
+      },
+      "center": [
+        251,
+        354
+      ],
+      "width": 293,
+      "height": 118,
+      "area": 34574
+    },
+    {
+      "id": 3,
+      "name": "Room_3",
+      "bounding_box": {
+        "x": 405,
+        "y": 295,
+        "width": 293,
+        "height": 118
+      },
+      "center": [
+        551,
+        354
+      ],
+      "width": 293,
+      "height": 118,
+      "area": 34574
+    },
+    {
+      "id": 4,
+      "name": "Room_4",
+      "bounding_box": {
+        "x": 105,
+        "y": 420,
+        "width": 293,
+        "height": 118
+      },
+      "center": [
+        251,
+        478
+      ],
+      "width": 293,
+      "height": 118,
+      "area": 34574
+    },
+    {
+      "id": 5,
+      "name": "Room_5",
+      "bounding_box": {
+        "x": 405,
+        "y": 420,
+        "width": 293,
+        "height": 118
+      },
+      "center": [
+        551,
+        478
+      ],
+      "width": 293,
+      "height": 118,
+      "area": 34574
+    }
+  ],
+  "doors": [
+    {
+      "id": 1,
+      "name": "Door_1",
+      "bounding_box": {
+        "x": 382,
+        "y": 208,
+        "width": 39,
+        "height": 7
+      },
+      "center": [
+        401,
+        211
+      ],
+      "orientation": "horizontal",
+      "associated_rooms": [
+        1
+      ],
+      "connected_regions": [
+        "Room_1",
+        "Corridor_1"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Door_2",
+      "bounding_box": {
+        "x": 232,
+        "y": 288,
+        "width": 39,
+        "height": 7
+      },
+      "center": [
+        251,
+        291
+      ],
+      "orientation": "horizontal",
+      "associated_rooms": [
+        2
+      ],
+      "connected_regions": [
+        "Corridor_1",
+        "Room_2"
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Door_3",
+      "bounding_box": {
+        "x": 532,
+        "y": 288,
+        "width": 39,
+        "height": 7
+      },
+      "center": [
+        551,
+        291
+      ],
+      "orientation": "horizontal",
+      "associated_rooms": [
+        3
+      ],
+      "connected_regions": [
+        "Corridor_1",
+        "Room_3"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Door_4",
+      "bounding_box": {
+        "x": 232,
+        "y": 413,
+        "width": 39,
+        "height": 7
+      },
+      "center": [
+        251,
+        416
+      ],
+      "orientation": "horizontal",
+      "associated_rooms": [
+        2,
+        4
+      ],
+      "connected_regions": [
+        "Room_2",
+        "Room_4"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Door_5",
+      "bounding_box": {
+        "x": 532,
+        "y": 413,
+        "width": 39,
+        "height": 7
+      },
+      "center": [
+        551,
+        416
+      ],
+      "orientation": "horizontal",
+      "associated_rooms": [
+        3,
+        5
+      ],
+      "connected_regions": [
+        "Room_3",
+        "Room_5"
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Door_6",
+      "bounding_box": {
+        "x": 398,
+        "y": 457,
+        "width": 7,
+        "height": 39
+      },
+      "center": [
+        401,
+        476
+      ],
+      "orientation": "vertical",
+      "associated_rooms": [
+        4,
+        5
+      ],
+      "connected_regions": [
+        "Room_4",
+        "Room_5"
+      ]
+    }
+  ],
+  "corridors": [
+    {
+      "id": 1,
+      "name": "Corridor_1",
+      "bounding_box": {
+        "x": 105,
+        "y": 215,
+        "width": 593,
+        "height": 73
+      },
+      "center": [
+        401,
+        251
+      ],
+      "area": 43289
+    }
+  ],
+  "walls": [
+    {
+      "id": 1,
+      "start": [
+        97,
+        60
+      ],
+      "end": [
+        704,
+        60
+      ],
+      "length": 607.0,
+      "orientation": "horizontal"
+    },
+    {
+      "id": 2,
+      "start": [
+        105,
+        210
+      ],
+      "end": [
+        192,
+        210
+      ],
+      "length": 87.0,
+      "orientation": "horizontal"
+    },
+    {
+      "id": 3,
+      "start": [
+        226,
+        210
+      ],
+      "end": [
+        363,
+        210
+      ],
+      "length": 137.0,
+      "orientation": "horizontal"
+    },
+    {
+      "id": 4,
+      "start": [
+        420,
+        210
+      ],
+      "end": [
+        704,
+        210
+      ],
+      "length": 284.0,
+      "orientation": "horizontal"
+    },
+    {
+      "id": 5,
+      "start": [
+        97,
+        289
+      ],
+      "end": [
+        232,
+        289
+      ],
+      "length": 135.0,
+      "orientation": "horizontal"
+    },
+    {
+      "id": 6,
+      "start": [
+        270,
+        289
+      ],
+      "end": [
+        532,
+        289
+      ],
+      "length": 262.0,
+      "orientation": "horizontal"
+    },
+    {
+      "id": 7,
+      "start": [
+        580,
+        289
+      ],
+      "end": [
+        696,
+        289
+      ],
+      "length": 116.0,
+      "orientation": "horizontal"
+    },
+    {
+      "id": 8,
+      "start": [
+        97,
+        415
+      ],
+      "end": [
+        233,
+        415
+      ],
+      "length": 136.0,
+      "orientation": "horizontal"
+    },
+    {
+      "id": 9,
+      "start": [
+        270,
+        415
+      ],
+      "end": [
+        532,
+        415
+      ],
+      "length": 262.0,
+      "orientation": "horizontal"
+    },
+    {
+      "id": 10,
+      "start": [
+        595,
+        415
+      ],
+      "end": [
+        692,
+        415
+      ],
+      "length": 97.0,
+      "orientation": "horizontal"
+    },
+    {
+      "id": 11,
+      "start": [
+        97,
+        540
+      ],
+      "end": [
+        704,
+        540
+      ],
+      "length": 607.0,
+      "orientation": "horizontal"
+    },
+    {
+      "id": 12,
+      "start": [
+        100,
+        62
+      ],
+      "end": [
+        100,
+        540
+      ],
+      "length": 478.0,
+      "orientation": "vertical"
+    },
+    {
+      "id": 13,
+      "start": [
+        401,
+        295
+      ],
+      "end": [
+        401,
+        457
+      ],
+      "length": 162.0,
+      "orientation": "vertical"
+    },
+    {
+      "id": 14,
+      "start": [
+        401,
+        495
+      ],
+      "end": [
+        401,
+        536
+      ],
+      "length": 41.0,
+      "orientation": "vertical"
+    },
+    {
+      "id": 15,
+      "start": [
+        700,
+        60
+      ],
+      "end": [
+        700,
+        542
+      ],
+      "length": 482.0,
+      "orientation": "vertical"
+    }
+  ],
+  "connections": [
+    {
+      "source": "Room_1",
+      "destination": "Corridor_1",
+      "via_door": "Door_1",
+      "distance": 115.0
+    },
+    {
+      "source": "Corridor_1",
+      "destination": "Room_2",
+      "via_door": "Door_2",
+      "distance": 218.2
+    },
+    {
+      "source": "Corridor_1",
+      "destination": "Room_3",
+      "via_door": "Door_3",
+      "distance": 218.2
+    },
+    {
+      "source": "Room_2",
+      "destination": "Room_4",
+      "via_door": "Door_4",
+      "distance": 124.0
+    },
+    {
+      "source": "Room_3",
+      "destination": "Room_5",
+      "via_door": "Door_5",
+      "distance": 124.0
+    },
+    {
+      "source": "Room_4",
+      "destination": "Room_5",
+      "via_door": "Door_6",
+      "distance": 300.0
+    }
+  ]
+}

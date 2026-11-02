@@ -107,10 +107,11 @@ def draw_route_overlay(
     - Destination room bounding box (bright blue fill + thick border)
     - Intermediate rooms/corridors (yellow fill)
     - Door markers that are part of the route (cyan circles)
-    - Connecting lines between room centres along the path
+    - Connecting arrows that pass through each traversed door
 
     The image is never modified in-place; a copy is returned.
-    Does not draw lines through walls — only connects region centres.
+    Arrows go from region centre to door centre to the next region centre,
+    so the path follows the selected doors instead of cutting across walls.
     """
     vis = img_bgr.copy()
     path = route.path
@@ -140,8 +141,10 @@ def draw_route_overlay(
             return (220, 80, 0)       # destination: vivid blue-orange (BGR)
         return (0, 200, 255)          # intermediate: amber/yellow (BGR)
 
+    door_lookup = {door.name: door for door in floorplan.doors}
+
     # Draw filled overlays + thick borders for each path node
-    centres: List[Tuple[int, int]] = []
+    path_points: List[Tuple[int, int]] = []
     for idx, node_name in enumerate(path):
         if node_name not in region_lookup:
             continue
@@ -158,7 +161,12 @@ def draw_route_overlay(
         cv2.rectangle(vis, (b.x, b.y), (b.x2, b.y2), colour, 3)
 
         cx, cy = region.center
-        centres.append((cx, cy))
+        path_points.append((cx, cy))
+
+        if idx < len(path) - 1 and idx < len(route.doors):
+            door = door_lookup.get(route.doors[idx])
+            if door is not None:
+                path_points.append(door.center)
 
         # Label badge
         label = f"[{idx}] {node_name}"
@@ -168,8 +176,8 @@ def draw_route_overlay(
         cv2.rectangle(vis, (lx - 2, ly - th - 2), (lx + tw + 2, ly + bl + 2), colour, -1)
         cv2.putText(vis, label, (lx, ly), font, 0.42, (0, 0, 0), 1, cv2.LINE_AA)
 
-    # Draw connecting arrows between consecutive region centres
-    for (p1, p2) in zip(centres[:-1], centres[1:]):
+    # Draw connecting arrows through the doors selected by the route
+    for (p1, p2) in zip(path_points[:-1], path_points[1:]):
         cv2.arrowedLine(vis, p1, p2, (255, 220, 0), 2, tipLength=0.2)
 
     return vis

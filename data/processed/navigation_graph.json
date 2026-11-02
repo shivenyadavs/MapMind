@@ -5,12 +5,16 @@
       "type": "room",
       "center": [
         400,
-        135
+        136
       ],
-      "area": 84799,
+      "area": 84064,
+      "semantic_label": null,
+      "label_source": "fallback",
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
       "bounding_box": [
-        104,
-        64,
+        105,
+        65,
         697,
         207
       ]
@@ -20,11 +24,15 @@
       "type": "room",
       "center": [
         250,
-        352
+        353
       ],
-      "area": 34574,
+      "area": 34201,
+      "semantic_label": null,
+      "label_source": "fallback",
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
       "bounding_box": [
-        104,
+        105,
         294,
         397,
         412
@@ -35,11 +43,15 @@
       "type": "room",
       "center": [
         550,
-        352
+        353
       ],
-      "area": 34574,
+      "area": 34201,
+      "semantic_label": null,
+      "label_source": "fallback",
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
       "bounding_box": [
-        404,
+        405,
         294,
         697,
         412
@@ -52,9 +64,13 @@
         250,
         478
       ],
-      "area": 34574,
+      "area": 34201,
+      "semantic_label": null,
+      "label_source": "fallback",
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
       "bounding_box": [
-        104,
+        105,
         419,
         397,
         537
@@ -67,7 +83,11 @@
         550,
         478
       ],
-      "area": 34574,
+      "area": 34238,
+      "semantic_label": null,
+      "label_source": "fallback",
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
       "bounding_box": [
         404,
         419,
@@ -82,9 +102,13 @@
         400,
         250
       ],
-      "area": 43289,
+      "area": 42661,
+      "semantic_label": null,
+      "label_source": "fallback",
+      "label_confidence": 0.0,
+      "classification_confidence": 0.0,
       "bounding_box": [
-        104,
+        105,
         214,
         697,
         287
@@ -96,43 +120,64 @@
       "source": "Room_1",
       "target": "Corridor_1",
       "door_id": "Door_1",
-      "weight": 115.0,
-      "distance": 115.0
+      "doors": [
+        "Door_1"
+      ],
+      "weight": 114.0,
+      "distance": 114.0
     },
     {
       "source": "Room_2",
       "target": "Corridor_1",
       "door_id": "Door_2",
-      "weight": 217.2,
-      "distance": 217.2
+      "doors": [
+        "Door_2"
+      ],
+      "weight": 218.2,
+      "distance": 218.2
     },
     {
       "source": "Room_2",
       "target": "Room_4",
       "door_id": "Door_4",
-      "weight": 126.0,
-      "distance": 126.0
+      "doors": [
+        "Door_4"
+      ],
+      "weight": 125.0,
+      "distance": 125.0
     },
     {
       "source": "Room_3",
       "target": "Corridor_1",
       "door_id": "Door_3",
-      "weight": 217.2,
-      "distance": 217.2
+      "doors": [
+        "Door_3"
+      ],
+      "weight": 218.2,
+      "distance": 218.2
     },
     {
       "source": "Room_3",
       "target": "Room_5",
       "door_id": "Door_5",
-      "weight": 126.0,
-      "distance": 126.0
+      "doors": [
+        "Door_5"
+      ],
+      "weight": 125.0,
+      "distance": 125.0
     },
     {
       "source": "Room_4",
       "target": "Room_5",
       "door_id": "Door_6",
+      "doors": [
+        "Door_6"
+      ],
       "weight": 300.1,
       "distance": 300.1
     }
-  ]
+  ],
+  "warnings": [],
+  "isolated_nodes": [],
+  "rejected_connections": []
 }

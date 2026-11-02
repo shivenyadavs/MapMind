@@ -264,6 +264,15 @@ class TestRouteOverlay:
         overlay = draw_route_overlay(tiny_bgr_image, sample_floorplan, sample_route)
         assert overlay.dtype == np.uint8
 
+    def test_overlay_routes_through_doors(self, tiny_bgr_image, sample_floorplan, sample_route):
+        from frontend.ui_helpers import draw_route_overlay
+        with patch("frontend.ui_helpers.cv2.arrowedLine") as arrow:
+            draw_route_overlay(tiny_bgr_image, sample_floorplan, sample_route)
+
+        segments = [(call.args[1], call.args[2]) for call in arrow.call_args_list]
+        assert ((60, 50), (113, 44)) in segments
+        assert ((113, 44), (155, 40)) in segments
+
 
 # ===========================================================================
 # 7. Graph Figure

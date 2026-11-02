@@ -48,12 +48,12 @@ class NavigationService:
                 f"Missing floor plan artifact at '{self.floorplan_path}'. "
                 "Please run `python run_phase3.py` to generate the required floorplan.json."
             )
-        if not self.graph_json_path.exists():
-            raise FileNotFoundError(
-                f"Missing navigation graph artifact at '{self.graph_json_path}'. "
-                "Please run `python run_phase3.py` to generate the required navigation_graph.json."
-            )
 
+        # The navigation graph is always rebuilt from the FloorPlan's detected
+        # connections. ``graph_json_path`` is retained for API compatibility
+        # with callers that also persist a graph artifact, but it is not
+        # required for navigation.
+        #
         # 1. Load FloorPlan
         with open(self.floorplan_path, "r", encoding="utf-8") as f:
             fp_data = json.load(f)
@@ -76,6 +76,15 @@ class NavigationService:
         if self.graph is None:
             return []
         return sorted(list(self.graph.nodes()))
+
+    def set_model(self, model: str) -> None:
+        """Switch the LLM model used by this service's parser/generator.
+
+        The query parser and response generator share the same client
+        instance, so subsequent navigation requests immediately use the newly
+        selected model. Pathfinding and the navigation graph are unaffected.
+        """
+        self.ollama_client.set_model(model)
 
     def navigate(self, query: str, use_llm: bool = True) -> Dict[str, Any]:
         """Process a natural-language query and return optimal navigation instructions.
